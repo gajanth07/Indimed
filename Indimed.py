@@ -245,4 +245,4 @@ if dept == "🔍 Symptom Search AI":
         st.markdown('<div class="card"><b>Search note</b><br><span class="smallnote">This is an evidence‑search assistant; final diagnosis must be made by a clinician.</span></div>', unsafe_allow_html=True)
         st.info("This is a clinical‑search assist module (not diagnosis).")
 
-elif dept == "💊 Medication Safety &
+elif dept == "💊 Medication Safety & dose":
