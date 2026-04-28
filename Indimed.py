@@ -245,4 +245,44 @@ if dept == "🔍 Symptom Search AI":
         st.markdown('<div class="card"><b>Search note</b><br><span class="smallnote">This is an evidence‑search assistant; final diagnosis must be made by a clinician.</span></div>', unsafe_allow_html=True)
         st.info("This is a clinical‑search assist module (not diagnosis).")
 
-elif dept == "💊 Medication Safety & dose":
+elif dept == "💊 Medication Safety & Dose":
+    t1, t2, t3 = st.tabs(["DDI Check", "Dose Calculator", "Extra Safety"])
+
+    with t1:
+        current = st.multiselect("Current medicines", sorted(DDI_DB.keys()))
+        new = st.selectbox("New medicine", ["— Select —"] + sorted(DDI_DB.keys()))
+        if new != "— Select —":
+            conflicts = [m for m in current if new in DDI_DB.get(m, []) or m in DDI_DB.get(new, [])]
+            if conflicts:
+                st.markdown(
+                    f'<div class="alert-red">Interaction: {new} with {", ".join(conflicts)}</div>',
+                    unsafe_allow_html=True
+                )
+            elif current:
+                st.markdown(
+                    '<div class="alert-green">No listed interaction found.</div>',
+                    unsafe_allow_html=True
+                )
+
+    with t2:
+        wt = st.number_input("Weight (kg)", 0.5, 250.0, 70.0, key="med_wt")
+        mgkg = st.number_input("Dose (mg/kg)", 0.1, 500.0, 15.0, key="med_mgkg")
+        doses = st.number_input("Doses/day", 1, 24, 3, key="med_doses")
+        total = wt * mgkg
+        daily = total * doses
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Single dose", f"{total:.2f} mg")
+        c2.metric("Daily dose", f"{daily:.2f} mg")
+        c3.metric("Daily dose", f"{daily/1000:.3f} g")
+
+    with t3:
+        crcl = st.number_input("Creatinine clearance / eGFR", 1.0, 200.0, 90.0, key="med_crcl")
+        maxdose = st.number_input("Max daily dose (mg)", 1.0, 10000.0, 3000.0, key="med_maxdose")
+        st.metric("Max dose headroom", f"{max(0, maxdose-daily):.1f} mg")
+
+        if crcl < 30:
+            st.markdown(
+                '<div class="alert-yellow">Renal dose adjustment needed</div>',
+                unsafe_allow_html=True
+            )
