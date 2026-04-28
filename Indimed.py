@@ -1,486 +1,249 @@
 import streamlit as st
-import io
-import math
-from datetime import date, timedelta
+import io, math, json, sqlite3
+from datetime import date, timedelta, datetime
+from pathlib import Path
 
-st.set_page_config(page_title='IndiMed Pro 2026', layout='wide')
+st.set_page_config(page_title='IndiMed Pro 2026 Production', layout='wide')
+DB_PATH = Path('output/indimed_clinic.db')
 
 st.markdown('''
 <style>
-:root { --bg:#ffffff; --bg2:#f7faff; --border:#d8e5f4; --text:#0f172a; --muted:#475569; --blue:#2563eb; --violet:#4f46e5; }
-.stApp { background: linear-gradient(180deg,var(--bg),var(--bg2)); color: var(--text); }
-html, body, [class*="css"] { color: var(--text); }
+:root { --bg:#eef5fb; --surface:#ffffff; --surface2:#f7fbff; --border:#d7e5f2; --text:#0f172a; --muted:#5b6b81; --primary:#175b9e; --primary2:#1c7ed6; --teal:#14b8a6; }
+.stApp { background: radial-gradient(circle at top left, #f8fcff 0%, #eef5fb 45%, #e6f0f9 100%); color: var(--text); }
 section[data-testid="stSidebar"] { display:none !important; }
-.main .block-container { max-width: 1380px; padding: 1.2rem 1.3rem 2rem; }
-.hero { background: linear-gradient(135deg,#ffffff,#edf5ff); border:1px solid #c7dbf3; border-radius:20px; padding:22px; margin-bottom:18px; }
-.hero h1 { margin:0; color:#0f172a; }
-.hero p { margin:.45rem 0 0; color:#334155 !important; }
-.card { background:#fff; border:1px solid var(--border); border-radius:18px; padding:14px; box-shadow:0 4px 18px rgba(37,99,235,.06); }
-.card h3 { margin:0 0 .35rem; font-size:1rem; }
-.card p { margin:0 0 .8rem; color:#475569 !important; font-size:.92rem; min-height:52px; }
-.stButton > button, .stDownloadButton > button { width:100% !important; border:none !important; border-radius:12px !important; font-weight:700 !important; color:white !important; }
-.stButton > button { background: linear-gradient(135deg,var(--blue),var(--violet)) !important; }
-.stDownloadButton > button { background: linear-gradient(135deg,#047857,#059669) !important; }
-[data-testid="stMetric"] { background:#fff; border:1px solid var(--border); border-radius:14px; padding:12px; }
-[data-testid="stMetricValue"] { color:#0f172a !important; font-weight:800 !important; }
-[data-testid="stMetricLabel"] p { color:#475569 !important; }
-.stTabs [data-baseweb="tab-list"] { background:#eef5ff; border:1px solid var(--border); border-radius:12px; padding:4px; }
-.stTabs [data-baseweb="tab"] { color:#334155; font-weight:700; border-radius:10px; }
-.stTabs [aria-selected="true"] { background: linear-gradient(135deg,var(--blue),var(--violet)) !important; color:white !important; }
-.alert-red,.alert-yellow,.alert-green,.note { padding:12px 14px; border-radius:12px; font-weight:600; margin:.5rem 0; }
-.alert-red { background:#fff1f2; border:1px solid #fecdd3; color:#881337; }
-.alert-yellow { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
-.alert-green { background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; }
-.note { background:#eff6ff; border:1px solid #bfdbfe; color:#1e3a8a; }
-.badge-access,.badge-watch,.badge-reserve { padding:5px 12px; border-radius:999px; font-weight:800; display:inline-block; }
-.badge-access { background:#dcfce7; color:#166534; }
-.badge-watch { background:#fef3c7; color:#92400e; }
-.badge-reserve { background:#fee2e2; color:#991b1b; }
+.main .block-container { max-width: 1500px; padding: 1rem 1rem 3rem; }
+.appbar,.appbrand {display:flex; align-items:center; gap:12px;} .appbar {justify-content:space-between; margin-bottom:14px;}
+.logo-orb {width:52px; height:52px; border-radius:16px; background:linear-gradient(135deg,#1b4f8a,#14b8a6); display:flex; align-items:center; justify-content:center; color:white; font-weight:800;} 
+.brandtxt h2 {margin:0; color:#113a62; font-size:1.15rem;} .brandtxt p {margin:.15rem 0 0; color:#66809a !important; font-size:.9rem;}
+.quickpill {background:#fff; border:1px solid #d7e5f2; color:#1a578f; padding:10px 14px; border-radius:999px; font-weight:700;}
+.hero { background: linear-gradient(135deg, #1b4f8a 0%, #1f6fb2 55%, #14b8a6 100%); color:white; border-radius:26px; padding:24px; margin-bottom:18px; } .hero h1 {margin:0; color:white;} .hero p {margin:.55rem 0 0; color:rgba(255,255,255,.88)!important;}
+.kpi-strip {display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:16px;} .kpi-box,.surface,.card {background:#fff; border:1px solid var(--border); border-radius:20px; padding:14px;} .kpi-box h4 {margin:0; color:#6a8198; font-size:.82rem;} .kpi-box p {margin:.35rem 0 0; color:#10375d; font-weight:800; font-size:1.15rem;}
+.card {border-radius:24px; min-height:168px; background:linear-gradient(180deg,#fff,#f8fbff);} .card-icon {width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#e9f4ff,#d9fbf6);font-size:1.5rem;margin-bottom:.85rem;} .card h3 {margin:0 0 .45rem; color:#13385d;} .card p {color:#5b6b81!important; min-height:58px;}
+.stButton>button,.stDownloadButton>button {width:100%!important;border:none!important;border-radius:14px!important;font-weight:700!important;color:white!important;min-height:44px;} .stButton>button {background:linear-gradient(135deg,var(--primary),var(--primary2))!important;} .stDownloadButton>button {background:linear-gradient(135deg,#0f766e,var(--teal))!important;}
+.alert-red,.alert-yellow,.alert-green,.note {padding:13px 15px;border-radius:16px;font-weight:600;margin:.6rem 0;} .alert-red {background:#fff4f4;border:1px solid #ffd7d7;color:#9f1239;} .alert-yellow {background:#fffaf0;border:1px solid #fde3a7;color:#9a6700;} .alert-green {background:#effdf7;border:1px solid #b7efd7;color:#0f766e;} .note {background:#eef7ff;border:1px solid #cfe4fa;color:#1d4f91;}
+.badge-due,.badge-overdue,.badge-upcoming,.badge-access,.badge-watch,.badge-reserve {padding:6px 12px;border-radius:999px;font-weight:800;display:inline-block;font-size:.82rem;margin:.2rem .35rem .2rem 0;} .badge-due{background:#fee2e2;color:#991b1b;} .badge-overdue{background:#fff1f2;color:#be123c;} .badge-upcoming{background:#dbeafe;color:#1d4ed8;} .badge-access{background:#dcfce7;color:#166534;} .badge-watch{background:#fef3c7;color:#92400e;} .badge-reserve{background:#fee2e2;color:#991b1b;}
 </style>
 ''', unsafe_allow_html=True)
 
-def export_note(content):
-    return io.BytesIO(content.encode())
+@st.cache_resource
+def get_conn():
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.execute('CREATE TABLE IF NOT EXISTS patients (patient_id TEXT PRIMARY KEY, name TEXT, age TEXT, sex TEXT, updated_at TEXT)')
+    conn.execute('CREATE TABLE IF NOT EXISTS records (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id TEXT, dept TEXT, summary TEXT, payload TEXT, created_at TEXT)')
+    conn.execute('CREATE TABLE IF NOT EXISTS trends (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id TEXT, dept TEXT, metric TEXT, value REAL, unit TEXT, created_at TEXT)')
+    conn.commit()
+    return conn
+conn = get_conn()
 
-def norm_cdf(z):
-    b = [0.2316419, 0.31938153, -0.356563782, 1.781477937, -1.821255978, 1.330274429]
-    t = 1.0 / (1.0 + b[0] * abs(z))
-    poly = t * (b[1] + t * (b[2] + t * (b[3] + t * (b[4] + t * b[5]))))
-    pdf_val = math.exp(-0.5 * z * z) / math.sqrt(2 * math.pi)
-    cdf = 1.0 - pdf_val * poly
-    return cdf if z >= 0 else 1.0 - cdf
+def query_df(sql, params=()):
+    cur = conn.cursor(); cur.execute(sql, params); rows = cur.fetchall(); cols = [d[0] for d in cur.description] if cur.description else []
+    return rows, cols
 
-def z_to_percentile(z):
-    return max(1, min(99, round(norm_cdf(z) * 100)))
+def save_patient(patient_id, name, age, sex):
+    conn.execute('INSERT OR REPLACE INTO patients(patient_id,name,age,sex,updated_at) VALUES(?,?,?,?,?)', (patient_id,name,age,sex,str(datetime.now())))
+    conn.commit()
 
-def sampson_ldl(tc, hdl, tg):
-    non_hdl = tc - hdl
-    return tc/0.948 - hdl/0.971 - (tg/8.56 + (tg*non_hdl)/2140 - (tg*tg)/16100) - 9.44
+def save_record(patient_id, dept, summary, payload):
+    conn.execute('INSERT INTO records(patient_id,dept,summary,payload,created_at) VALUES(?,?,?,?,?)', (patient_id,dept,summary,json.dumps(payload),str(datetime.now())))
+    conn.commit()
 
-def ckd_epi_2021(scr, age, female):
-    k = 0.7 if female else 0.9
-    a = -0.241 if female else -0.302
-    val = 142 * (min(scr/k, 1)**a) * (max(scr/k, 1)**-1.2) * (0.9938**age)
-    if female:
-        val *= 1.012
-    return val
+def save_trend(patient_id, dept, metric, value, unit=''):
+    conn.execute('INSERT INTO trends(patient_id,dept,metric,value,unit,created_at) VALUES(?,?,?,?,?,?)', (patient_id,dept,metric,float(value),unit,str(datetime.now())))
+    conn.commit()
 
-def meld3(bili, inr, cr, na, albumin, female):
-    bili = max(1.0, bili)
-    inr = max(1.0, inr)
-    cr = min(3.0, max(1.0, cr))
-    na = min(137, max(125, na))
-    albumin = min(3.5, max(1.5, albumin))
-    sex = 1 if female else 0
-    score = 1.33*sex + 4.56*math.log(bili) + 0.82*(137-na) - 0.24*(137-na)*math.log(bili) + 9.09*math.log(inr) + 11.14*math.log(cr) + 1.85*(3.5-albumin) - 1.83*(3.5-albumin)*math.log(cr) + 6
-    return round(score)
+def schedule_badge(d):
+    if d < date.today(): return 'badge-overdue','Overdue'
+    if d == date.today(): return 'badge-due','Due today'
+    return 'badge-upcoming','Upcoming'
 
-def interp(msg, level='note'):
-    st.markdown(f"<div class='{level}'>{msg}</div>", unsafe_allow_html=True)
-
-
+def interp(msg, level='note'): st.markdown(f"<div class='{level}'>{msg}</div>", unsafe_allow_html=True)
 def decision_box(status, reason, next_step, red_flags='None entered'):
-    style = 'alert-green' if status == 'Normal' else 'alert-yellow' if status == 'Borderline' else 'alert-red'
+    style='alert-green' if status=='Normal' else 'alert-yellow' if status=='Borderline' else 'alert-red'
     st.markdown(f"<div class='{style}'><b>Status:</b> {status}<br><b>Reason:</b> {reason}<br><b>Suggested next step:</b> {next_step}<br><b>Red flags / refer now:</b> {red_flags}</div>", unsafe_allow_html=True)
+def evidence_box(source, formula, pearl, pitfalls, cite):
+    st.markdown(f"<div class='surface'><b>Evidence / source:</b> {source}<br><b>Formula / method:</b> {formula}<br><b>Clinical pearl:</b> {pearl}<br><b>Pitfalls:</b> {pitfalls}<br><b>Guideline link / citation:</b> {cite}</div>", unsafe_allow_html=True)
 
-AWARE_DB = {
-    'Amoxicillin':'ACCESS','Ampicillin':'ACCESS','Cefalexin':'ACCESS','Doxycycline':'ACCESS','Cefixime':'WATCH','Azithromycin':'WATCH','Ceftriaxone':'WATCH','Piperacillin-Tazobactam':'WATCH','Vancomycin':'WATCH','Meropenem':'RESERVE','Imipenem':'RESERVE','Colistin':'RESERVE','Linezolid':'RESERVE'
+def kg_to_lb(kg): return kg*2.20462
+def cm_to_in(cm): return cm/2.54
+def mg_ldl_to_mmol(val): return val/38.67
+def sampson_ldl(tc,hdl,tg): non_hdl=tc-hdl; return tc/0.948-hdl/0.971-(tg/8.56+(tg*non_hdl)/2140-(tg*tg)/16100)-9.44
+def ckd_epi_2021(scr,age,female):
+    k=0.7 if female else 0.9; a=-0.241 if female else -0.302; val=142*(min(scr/k,1)**a)*(max(scr/k,1)**-1.2)*(0.9938**age)
+    return val*1.012 if female else val
+
+def html_report(patient, dept, summary, cite):
+    html=f"""<html><head><meta charset='utf-8'><title>IndiMed Report</title><style>body{{font-family:Arial;padding:28px;color:#0f172a}} .box{{border:1px solid #d7e5f2;border-radius:16px;padding:16px;margin:12px 0;background:#f8fbff}}</style></head><body><h1>IndiMed Pro 2026 Report</h1><div class='box'><b>Patient:</b> {patient.get('name','')}<br><b>ID:</b> {patient.get('patient_id','')}<br><b>Age:</b> {patient.get('age','')}<br><b>Sex:</b> {patient.get('sex','')}<br><b>Date:</b> {date.today()}</div><div class='box'><b>Department:</b> {dept}</div><div class='box'><b>Summary:</b> {summary}</div><div class='box'><b>Guideline-linked citation:</b> {cite}</div><div class='box'><b>Clinical note:</b> Clinical decision support only. Verify with local protocol and clinical judgment.</div></body></html>"""
+    return io.BytesIO(html.encode())
+
+DEPT_ICONS={'Medication Safety and Dose':'ðŸ’Š','Metabolic and General Medicine':'ðŸ©º','Pediatrics and Growth':'ðŸ§’','Neonatology':'ðŸ¼','Cardiology (Lipids and Risk)':'â¤ï¸','Gastroenterology (Hepatology)':'ðŸ«€','Neurology (Emergency)':'ðŸ§ ','Nephrology (eGFR Suite)':'ðŸ§ª','Ophthalmology and Orthopedics':'ðŸ‘ï¸','OB/GYN':'ðŸ¤°','ICU / Critical Care':'ðŸ¥','Emergency Medicine':'ðŸš‘','Hematology':'ðŸ©¸','HIV / ART Follow-up':'ðŸ—“ï¸'}
+DEPTS=[('Medication Safety and Dose','Drug interaction checks, dose support, renal safety.'),('Metabolic and General Medicine','BMI, BSA, MAP, stewardship support.'),('Pediatrics and Growth','Growth, vaccines, fluids, fever dosing.'),('Neonatology','Prematurity, APGAR, corrected age, feeds.'),('Cardiology (Lipids and Risk)','LDL-C, BP, lipids and risk support.'),('Gastroenterology (Hepatology)','Liver scores and severity support.'),('Neurology (Emergency)','GCS-P and stroke timing support.'),('Nephrology (eGFR Suite)','eGFR and kidney risk support.'),('Ophthalmology and Orthopedics','IOP correction and bone risk.'),('OB/GYN','Pregnancy dating and labor support.'),('ICU / Critical Care','Shock, oxygenation, sepsis concern.'),('Emergency Medicine','Triage, sepsis, rabies PEP.'),('Hematology','Mentzer, ANC, platelet flags.'),('HIV / ART Follow-up','ART milestone planning and support.')]
+EVIDENCE={
+    'Medication Safety and Dose':('WHO stewardship concepts + local formulary','DDI quick screen and mg/kg support','Keep dosing simple and validated','Interaction database is not exhaustive','WHO AWaRe / local formulary'),
+    'Metabolic and General Medicine':('Standard bedside measures','BMI, BSA, MAP, waist/height','Useful for first-pass metabolic risk screening','Not diagnostic alone','Standard bedside screening references'),
+    'Pediatrics and Growth':('Pediatric growth and immunization support','Approximate growth screening + vaccine milestone engine','Use trend more than single value','Not a full percentile or catch-up engine','National immunization / pediatric growth references'),
+    'Neonatology':('Neonatal bedside support','Prematurity, corrected age, feeds','Corrected age changes interpretation','Fluids vary by setting and illness','Neonatal follow-up references'),
+    'Cardiology (Lipids and Risk)':('Current lipid estimation practice','Sampson LDL and BP support','Non-HDL is helpful in hypertriglyceridemia','Treatment still needs full risk context','Lipid guideline / risk estimation references'),
+    'Gastroenterology (Hepatology)':('Liver severity score practice','MELD family framework','Scores help triage severity','Acute illness may outpace scores','Liver disease severity guideline references'),
+    'Neurology (Emergency)':('Emergency neuro assessment support','GCS/GCS-P and stroke time window','Time-to-action matters','Screening tools do not exclude disease','Stroke and neuro-emergency references'),
+    'Nephrology (eGFR Suite)':('Current adult kidney function reporting','CKD-EPI 2021 race-free equation','Confirm chronicity and proteinuria','AKI and extremes may mislead eGFR','Kidney disease guideline references'),
+    'Ophthalmology and Orthopedics':('Bedside screening support','IOP correction + simple bone risk cues','Useful for quick first-pass review','Needs specialty confirmation','Ophthalmology / osteoporosis references'),
+    'OB/GYN':('Routine obstetric bedside tools','EDD, GA, labor readiness, shock cues','Good for triage planning','Emergencies override score logic','Obstetric guideline references'),
+    'ICU / Critical Care':('Critical care bedside assessment','Shock index, oxygenation, sepsis concern','Trend values repeatedly','Deterioration may be rapid','Sepsis / critical care references'),
+    'Emergency Medicine':('Acute triage and rabies planning','qSOFA-style screen + ARV planning','Useful for time-sensitive organization','Local protocol alignment is essential','Emergency and rabies PEP references'),
+    'Hematology':('Common screening heuristics','Mentzer index, ANC, platelet flags','Helps first-pass sorting','Needs smear and confirmatory labs','Hematology screening references'),
+    'HIV / ART Follow-up':('HIV clinic timing support','ART milestone planner','Good adherence and follow-up tool','Local HIV protocol should decide actions','HIV program follow-up references')
 }
-DDI_DB = {
-    'Sildenafil':['Nitroglycerin','Isosorbide Mononitrate','Amlodipine'],'Clopidogrel':['Omeprazole','Esomeprazole','Aspirin'],'Warfarin':['Aspirin','Ibuprofen','Amiodarone','Clarithromycin','Metronidazole'],'Atorvastatin':['Clarithromycin','Gemfibrozil','Cyclosporine'],'Spironolactone':['Enalapril','Telmisartan','Potassium Chloride'],'Metformin':['Iodinated Contrast','Alcohol'],'Amiodarone':['Warfarin','Digoxin','Simvastatin'],'Digoxin':['Amiodarone','Verapamil','Clarithromycin']
-}
-GROWTH_REF = {
-    'Male': {5:(18.7,2.5,110,4.5),6:(20.5,2.8,116,4.5),7:(22.4,3.2,121,5.0),8:(24.5,3.8,126,5.0),9:(27.0,4.5,131,5.5),10:(29.7,5.5,136,5.5),11:(32.5,6.5,140,6.0),12:(36.0,7.5,146,6.5),13:(40.5,8.5,153,7.0),14:(45.5,9.0,160,7.0),15:(49.5,9.5,164,6.5),16:(53.0,9.5,167,6.0),17:(56.0,9.5,169,6.0),18:(58.0,9.5,170,6.0)},
-    'Female': {5:(17.5,2.5,109,4.5),6:(19.5,2.8,114,4.5),7:(21.5,3.2,120,5.0),8:(23.8,4.0,125,5.0),9:(26.5,5.0,130,5.5),10:(30.0,6.0,136,5.5),11:(34.0,7.0,142,6.0),12:(38.0,7.5,148,6.5),13:(42.0,8.0,153,6.0),14:(45.0,8.0,156,6.0),15:(47.5,8.0,157,5.5),16:(49.5,8.0,158,5.5),17:(50.5,8.0,159,5.5),18:(51.5,8.0,160,5.5)}
-}
-VACCINE_SCHEDULE = [
-    ('Birth', 'BCG, OPV-0, Hepatitis B birth dose'),
-    ('6 weeks', 'OPV-1, Pentavalent-1, RVV-1, fIPV-1, PCV-1'),
-    ('10 weeks', 'OPV-2, Pentavalent-2, RVV-2'),
-    ('14 weeks', 'OPV-3, Pentavalent-3, IPV-2/fIPV as per program, RVV-3, PCV-2'),
-    ('9-12 months', 'MR-1, JE-1 in endemic areas, PCV booster'),
-    ('16-24 months', 'DPT booster-1, OPV booster, MR-2, JE-2 in endemic areas'),
-    ('5-6 years', 'DPT booster-2'),
-    ('10 years', 'Td'),
-    ('16 years', 'Td')
-]
-DEPTS = [
-    ('Medication Safety and Dose', 'Drug interaction checks, dose support, renal safety.'),
-    ('Metabolic and General Medicine', 'BMI, body surface area, MAP, AWaRe support.'),
-    ('Pediatrics and Growth', 'Growth, fluids, growth chart, vaccine schedule.'),
-    ('Cardiology (Lipids and Risk)', 'Sampson LDL-C, non-HDL-C, blood pressure metrics.'),
-    ('Gastroenterology (Hepatology)', 'MELD, MELD-Na, MELD 3.0 bedside support.'),
-    ('Neurology (Emergency)', 'GCS-P and stroke timing support.'),
-    ('Nephrology (eGFR Suite)', 'CKD-EPI 2021 eGFR and proteinuria flags.'),
-    ('Ophthalmology and Orthopedics', 'Corrected IOP and bone risk score.'),
-    ('OB/GYN', 'Pregnancy dating and labor support.'),
-    ('ICU / Critical Care', 'Shock index, P/F ratio, sepsis concern.'),
-    ('Emergency Medicine', 'Triage red flags and trauma concern.'),
-    ('Hematology', 'Mentzer index, ANC, platelet flags.'),
-    ('HIV / ART Follow-up', 'ART date planner and follow-up milestones.')
-]
+VACCINE_SCHEDULE=[('Birth',0,'BCG, OPV-0, Hepatitis B birth dose'),('6 weeks',42,'DTwP/DTaP-1, IPV-1, Hib-1, Hep B-2, Rotavirus-1, PCV-1'),('10 weeks',70,'DTwP/DTaP-2, IPV-2, Hib-2, Rotavirus-2, PCV-2'),('14 weeks',98,'DTwP/DTaP-3, IPV-3/fIPV-2, Hib-3, PCV-3'),('9 months',270,'MMR-1, TCV'),('12 months',365,'Hep A-1, Varicella-1'),('15 months',455,'MMR-2, Varicella-2, PCV booster')]
+AWARE_DB={'Amoxicillin':'ACCESS','Ampicillin':'ACCESS','Cefalexin':'ACCESS','Doxycycline':'ACCESS','Cefixime':'WATCH','Azithromycin':'WATCH','Ceftriaxone':'WATCH','Piperacillin-Tazobactam':'WATCH','Vancomycin':'WATCH','Meropenem':'RESERVE','Colistin':'RESERVE'}
+if 'page' not in st.session_state: st.session_state.page='home'
+if 'selected_dept' not in st.session_state: st.session_state.selected_dept=DEPTS[0][0]
+if 'favorites' not in st.session_state: st.session_state.favorites=[]
+if 'recents' not in st.session_state: st.session_state.recents=[]
+if 'nav' not in st.session_state: st.session_state.nav='Dashboard'
 
-if 'page' not in st.session_state:
-    st.session_state.page = 'home'
-if 'selected_dept' not in st.session_state:
-    st.session_state.selected_dept = DEPTS[0][0]
-
-def go_home():
-    st.session_state.page = 'home'
-
+def go_home(): st.session_state.page='home'
 def open_dept(name):
-    st.session_state.selected_dept = name
-    st.session_state.page = 'dept'
+    st.session_state.selected_dept=name; st.session_state.page='dept'
+    if name in st.session_state.recents: st.session_state.recents.remove(name)
+    st.session_state.recents=[name]+st.session_state.recents[:5]
+def toggle_favorite(name):
+    if name in st.session_state.favorites: st.session_state.favorites.remove(name)
+    else: st.session_state.favorites.append(name)
 
-if st.session_state.page == 'home':
-    st.markdown("<div class='hero'><h1>IndiMed Pro 2026</h1><p>Tap a department card to open its calculator page. This version adds pediatric growth support, vaccine schedule, HIV / ART follow-up planning, and interpretation text after calculations.</p></div>", unsafe_allow_html=True)
-    st.markdown('### Departments')
-    for row_start in range(0, len(DEPTS), 3):
-        cols = st.columns(3)
-        for i, (title, desc) in enumerate(DEPTS[row_start:row_start+3]):
-            with cols[i]:
-                st.markdown(f"<div class='card'><h3>{title}</h3><p>{desc}</p></div>", unsafe_allow_html=True)
-                st.button(f'Open {title}', key=f'open_{title}', on_click=open_dept, args=(title,))
+def patient_selector():
+    rows,_=query_df('SELECT patient_id,name,age,sex,updated_at FROM patients ORDER BY updated_at DESC')
+    ids=[f"{r[0]} â€” {r[1]}" for r in rows]
+    with st.expander('Persistent patient database / cloud-save ready', expanded=False):
+        c1,c2,c3,c4=st.columns(4)
+        patient_id=c1.text_input('Patient ID')
+        name=c2.text_input('Name')
+        age=c3.text_input('Age')
+        sex=c4.selectbox('Sex',['Male','Female','Other'])
+        if st.button('Save patient to local DB'):
+            save_patient(patient_id,name,age,sex)
+            st.success('Patient saved to SQLite local database')
+        if ids:
+            sel=st.selectbox('Load patient', ids)
+            if st.button('Show selected patient'):
+                st.info(sel)
+        interp('SQLite is useful for local persistence, but production cloud deployment should use a remote database such as PostgreSQL, MySQL, or Supabase through secure connections and secrets management.', 'note')
+        return {'patient_id':patient_id,'name':name,'age':age,'sex':sex}
+
+def history_tables():
+    with st.expander('Multi-patient history tables', expanded=False):
+        prows,pcols=query_df('SELECT patient_id,name,age,sex,updated_at FROM patients ORDER BY updated_at DESC')
+        rrows,rcols=query_df('SELECT patient_id,dept,summary,created_at FROM records ORDER BY created_at DESC LIMIT 100')
+        trows,tcols=query_df('SELECT patient_id,dept,metric,value,unit,created_at FROM trends ORDER BY created_at DESC LIMIT 200')
+        if prows: st.dataframe([dict(zip(pcols,r)) for r in prows], use_container_width=True)
+        if rrows: st.dataframe([dict(zip(rcols,r)) for r in rrows], use_container_width=True)
+        if trows: st.dataframe([dict(zip(tcols,r)) for r in trows], use_container_width=True)
+
+def conversion_panel():
+    with st.expander('Unit conversion everywhere', expanded=False):
+        c1,c2,c3=st.columns(3)
+        kg=c1.number_input('kg',0.0,500.0,70.0); cm=c2.number_input('cm',0.0,300.0,170.0); ldl=c3.number_input('LDL mg/dL',0.0,500.0,100.0)
+        d1,d2,d3=st.columns(3); d1.metric('lb',f'{kg_to_lb(kg):.2f}'); d2.metric('in',f'{cm_to_in(cm):.2f}'); d3.metric('mmol/L',f'{mg_ldl_to_mmol(ldl):.2f}')
+
+def trend_view(patient_id=None):
+    with st.expander('Trend charts over time', expanded=False):
+        rows,cols=query_df('SELECT patient_id,dept,metric,value,unit,created_at FROM trends ORDER BY created_at')
+        data=[dict(zip(cols,r)) for r in rows if (not patient_id or r[0]==patient_id)]
+        if data:
+            metrics=sorted({x['metric'] for x in data}); metric=st.selectbox('Metric', metrics)
+            vals=[x['value'] for x in data if x['metric']==metric]
+            st.line_chart({'value':vals})
+            st.dataframe([x for x in data if x['metric']==metric], use_container_width=True)
+        else:
+            st.info('No stored trends yet.')
+
+def generic_department_framework(dept, patient):
+    source, formula, pearl, pitfalls, cite = EVIDENCE[dept]
+    evidence_box(source, formula, pearl, pitfalls, cite)
+    st.markdown("<div class='surface'><b>Framework enabled:</b> patient save/load, multi-patient history, trend logging, guideline-linked report export, unit conversion, and structured summary for this department.</div>", unsafe_allow_html=True)
+    summary=f'{dept} framework opened.'
+    if dept=='Medication Safety and Dose':
+        wt=st.number_input('Weight (kg)',1.0,250.0,70.0); mgkg=st.number_input('Dose mg/kg',0.1,500.0,15.0); abx=st.selectbox('Antibiotic',['â€” Select â€”']+sorted(AWARE_DB.keys())); total=wt*mgkg
+        st.metric('Single dose', f'{total:.2f} mg'); save_trend(patient.get('patient_id','unknown'), dept, 'Dose mg', total, 'mg'); summary=f'Dose support {total:.2f} mg'
+        if abx!='â€” Select â€”':
+            cat=AWARE_DB[abx]; badge={'ACCESS':'badge-access','WATCH':'badge-watch','RESERVE':'badge-reserve'}[cat]; st.markdown(f"<span class='{badge}'>{abx}: {cat}</span>", unsafe_allow_html=True)
+    elif dept=='Metabolic and General Medicine':
+        w=st.number_input('Weight kg',5.0,300.0,70.0); h=st.number_input('Height cm',50.0,250.0,170.0); sbp=st.number_input('SBP',50,250,120); dbp=st.number_input('DBP',30,150,80)
+        bmi=w/((h/100)**2); st.metric('BMI', f'{bmi:.2f}'); st.metric('MAP', f'{(sbp+2*dbp)/3:.1f}'); save_trend(patient.get('patient_id','unknown'), dept, 'BMI', bmi, 'kg/mÂ²'); summary=f'BMI {bmi:.2f}'
+    elif dept=='Pediatrics and Growth':
+        dob=st.date_input('DOB', value=date.today()-timedelta(days=365)); wt=st.number_input('Weight kg',1.0,120.0,10.0); ht=st.number_input('Height cm',30.0,200.0,75.0)
+        st.metric('Maintenance fluid/day', f'{(wt*100 if wt<=10 else 1000+(wt-10)*50 if wt<=20 else 1500+(wt-20)*20):.0f} mL/day'); save_trend(patient.get('patient_id','unknown'), dept, 'Weight', wt, 'kg'); save_trend(patient.get('patient_id','unknown'), dept, 'Height', ht, 'cm')
+        for band,daynum,vaccines in VACCINE_SCHEDULE:
+            due=dob+timedelta(days=daynum); badge,label=schedule_badge(due); st.markdown(f"<div class='card'><h3>{band} <span class='{badge}'>{label}</span></h3><p>{due}<br>{vaccines}</p></div>", unsafe_allow_html=True)
+        summary=f'Pediatric follow-up with weight {wt} kg and height {ht} cm'
+    elif dept=='Neonatology':
+        ga=st.number_input('Gestational age at birth (weeks)',22,44,36); current_wt=st.number_input('Current weight kg',0.5,8.0,2.8); day_life=st.number_input('Day of life',1,28,3)
+        st.metric('Corrected prematurity flag', 'Preterm' if ga<37 else 'Term'); st.metric('Feed estimate', f'{current_wt*(80 if day_life<=1 else 100 if day_life<=3 else 120 if day_life<=7 else 150):.0f} mL/day'); save_trend(patient.get('patient_id','unknown'), dept, 'Neonate weight', current_wt, 'kg'); summary=f'GA {ga} weeks, current wt {current_wt} kg'
+    elif dept=='Cardiology (Lipids and Risk)':
+        tc=st.number_input('TC mg/dL',1.0,500.0,200.0); hdl=st.number_input('HDL mg/dL',1.0,200.0,45.0); tg=st.number_input('TG mg/dL',1.0,1000.0,150.0); sbp=st.number_input('SBP',50,250,120); dbp=st.number_input('DBP',30,150,80)
+        ldl=sampson_ldl(tc,hdl,tg); st.metric('LDL-C', f'{ldl:.1f}'); st.metric('Non-HDL', f'{tc-hdl:.1f}'); save_trend(patient.get('patient_id','unknown'), dept, 'LDL-C', ldl, 'mg/dL'); summary=f'LDL-C {ldl:.1f} mg/dL, BP {sbp}/{dbp}'
+    elif dept=='Gastroenterology (Hepatology)':
+        bili=st.number_input('Bilirubin',0.1,50.0,1.0); inr=st.number_input('INR',0.1,15.0,1.1); cr=st.number_input('Creatinine',0.1,15.0,1.0); score=round(10*((0.957*math.log(max(1,cr)))+(0.378*math.log(max(1,bili)))+(1.12*math.log(max(1,inr))))+6.43,1)
+        st.metric('MELD', score); save_trend(patient.get('patient_id','unknown'), dept, 'MELD', score, ''); summary=f'MELD {score}'
+    elif dept=='Neurology (Emergency)':
+        e=st.select_slider('Eye',[1,2,3,4],value=4); v=st.select_slider('Verbal',[1,2,3,4,5],value=5); m=st.select_slider('Motor',[1,2,3,4,5,6],value=6); gcs=e+v+m
+        st.metric('GCS', f'{gcs}/15'); save_trend(patient.get('patient_id','unknown'), dept, 'GCS', gcs, '/15'); summary=f'GCS {gcs}/15'
+    elif dept=='Nephrology (eGFR Suite)':
+        scr=st.number_input('Creatinine mg/dL',0.1,15.0,1.0); age=st.number_input('Age',18,110,50); sex=st.selectbox('Sex',['Male','Female']); gfr=ckd_epi_2021(scr,age,sex=='Female')
+        st.metric('eGFR', f'{gfr:.1f}'); save_trend(patient.get('patient_id','unknown'), dept, 'eGFR', gfr, 'mL/min/1.73mÂ²'); summary=f'eGFR {gfr:.1f}'
+    elif dept=='Ophthalmology and Orthopedics':
+        iop=st.number_input('Measured IOP',5,60,20); cct=st.number_input('CCT Î¼m',300,800,545); corrected=iop+((545-cct)/50*2.5)
+        st.metric('Corrected IOP', f'{corrected:.1f}'); save_trend(patient.get('patient_id','unknown'), dept, 'Corrected IOP', corrected, 'mmHg'); summary=f'Corrected IOP {corrected:.1f} mmHg'
+    elif dept=='OB/GYN':
+        lmp=st.date_input('LMP', value=date.today()); cycle=st.number_input('Cycle length',21,45,28); edd=lmp+timedelta(days=280+(cycle-28)); ga=(date.today()-lmp).days/7
+        st.metric('EDD', str(edd)); st.metric('GA', f'{ga:.1f} weeks'); save_trend(patient.get('patient_id','unknown'), dept, 'Gestational age', ga, 'weeks'); summary=f'GA {ga:.1f} weeks, EDD {edd}'
+    elif dept=='ICU / Critical Care':
+        hr=st.number_input('Heart rate',20,250,100); sbp=st.number_input('SBP',30,250,110); shock=hr/sbp; st.metric('Shock index', f'{shock:.2f}'); save_trend(patient.get('patient_id','unknown'), dept, 'Shock index', shock, ''); summary=f'Shock index {shock:.2f}'
+    elif dept=='Emergency Medicine':
+        bite=st.date_input('Date of bite', value=date.today()); category=st.selectbox('Bite category',['Category I','Category II','Category III']); wt=st.number_input('Weight kg for RIG',1.0,200.0,60.0)
+        for d in [0,3,7,14,28]:
+            due=bite+timedelta(days=d); badge,label=schedule_badge(due); st.markdown(f"<div class='card'><h3>ARV Day {d} <span class='{badge}'>{label}</span></h3><p>{due}</p></div>", unsafe_allow_html=True)
+        if category=='Category III': st.metric('ERIG dose', f'{wt*40:.0f} IU'); save_trend(patient.get('patient_id','unknown'), dept, 'Rabies weight', wt, 'kg'); summary=f'Rabies category {category}, weight {wt} kg'
+    elif dept=='Hematology':
+        hb=st.number_input('Hemoglobin',1.0,25.0,12.0); mcv=st.number_input('MCV',40.0,130.0,85.0); mentzer=mcv/hb if hb else 0
+        st.metric('Mentzer index', f'{mentzer:.2f}'); save_trend(patient.get('patient_id','unknown'), dept, 'Mentzer index', mentzer, ''); summary=f'Mentzer index {mentzer:.2f}'
+    elif dept=='HIV / ART Follow-up':
+        art=st.date_input('ART start', value=date.today()); milestones=[('4 weeks',28),('3 months',90),('6 months',180),('12 months',365)]
+        for name,days in milestones:
+            due=art+timedelta(days=days); badge,label=schedule_badge(due); st.markdown(f"<div class='card'><h3>{name} <span class='{badge}'>{label}</span></h3><p>{due}</p></div>", unsafe_allow_html=True)
+        save_trend(patient.get('patient_id','unknown'), dept, 'ART start offset', 0, 'days'); summary=f'ART follow-up started {art}'
+    save_record(patient.get('patient_id','unknown'), dept, summary, {'patient':patient,'dept':dept})
+    return summary, cite
+
+patient = patient_selector()
+history_tables()
+conversion_panel()
+trend_view(patient.get('patient_id'))
+
+if st.session_state.page=='home':
+    st.markdown("<div class='appbar'><div class='appbrand'><div class='logo-orb'>IM</div><div class='brandtxt'><h2>IndiMed Pro 2026 Production</h2><p>Persistent patient database, multi-patient history, full department framework, and guideline-linked reporting</p></div></div><div class='quickpill'>Production-style CDS shell</div></div>", unsafe_allow_html=True)
+    st.markdown("<div class='hero'><h1>Persistent Clinical Workflow</h1><p>This build adds a SQLite-backed local database, cloud-ready architecture notes, history tables, trend storage, and guideline-linked report export across every department framework.</p></div>", unsafe_allow_html=True)
+    prows,_=query_df('SELECT patient_id FROM patients'); rrows,_=query_df('SELECT id FROM records'); trows,_=query_df('SELECT id FROM trends')
+    st.markdown(f"<div class='kpi-strip'><div class='kpi-box'><h4>Departments</h4><p>{len(DEPTS)}</p></div><div class='kpi-box'><h4>Patients</h4><p>{len(prows)}</p></div><div class='kpi-box'><h4>Records</h4><p>{len(rrows)}</p></div><div class='kpi-box'><h4>Trends</h4><p>{len(trows)}</p></div></div>", unsafe_allow_html=True)
+    search=st.text_input('Search calculators or departments')
+    cols=st.columns(3)
+    if cols[0].button('Dashboard'): st.session_state.nav='Dashboard'
+    if cols[1].button('Favorites'): st.session_state.nav='Favorites'
+    if cols[2].button('Recent'): st.session_state.nav='Recent'
+    show=DEPTS if st.session_state.nav=='Dashboard' else [d for d in DEPTS if d[0] in st.session_state.favorites] if st.session_state.nav=='Favorites' else [(n,dict(DEPTS)[n]) for n in st.session_state.recents if n in dict(DEPTS)]
+    if search: show=[d for d in show if search.lower() in d[0].lower() or search.lower() in d[1].lower()]
+    for row_start in range(0,len(show),3):
+        c=st.columns(3)
+        for i,(title,desc) in enumerate(show[row_start:row_start+3]):
+            with c[i]:
+                icon=DEPT_ICONS.get(title,'â€¢'); fav='â˜… Remove Favorite' if title in st.session_state.favorites else 'â˜† Add Favorite'
+                st.markdown(f"<div class='card'><div class='card-icon'>{icon}</div><h3>{title}</h3><p>{desc}</p></div>", unsafe_allow_html=True)
+                a,b=st.columns(2); a.button('Open', key=f'open_{title}', on_click=open_dept, args=(title,)); b.button(fav, key=f'fav_{title}', on_click=toggle_favorite, args=(title,))
+    interp('Local SQLite gives semi-persistent storage in local use, while production cloud persistence should move to an external database connection for reliability.', 'note')
 else:
-    dept = st.session_state.selected_dept
-    top1, top2 = st.columns([5,1])
-    with top1:
-        st.markdown(f"<div class='hero'><h1>{dept}</h1><p>Department calculator page with interpretation support</p></div>", unsafe_allow_html=True)
-    with top2:
-        st.button('â† Home', on_click=go_home)
-
-    daily = 0
-
-    if dept == 'Medication Safety and Dose':
-        t1, t2, t3 = st.tabs(['DDI Check','Dose Calculator','Extra Safety'])
-        with t1:
-            current = st.multiselect('Current medicines', sorted(DDI_DB.keys()))
-            new = st.selectbox('New medicine', ['â€” Select â€”'] + sorted(DDI_DB.keys()))
-            if new != 'â€” Select â€”':
-                conflicts = [m for m in current if new in DDI_DB.get(m, []) or m in DDI_DB.get(new, [])]
-                if conflicts:
-                    interp(f'Potential interaction detected between {new} and {", ".join(conflicts)}. This quick screen suggests closer drug-reference review before prescribing.', 'alert-red')
-                elif current:
-                    interp('No listed interaction found in the local quick-check database, but this does not replace a full interaction checker.', 'alert-green')
-        with t2:
-            wt = st.number_input('Weight (kg)', 0.5, 250.0, 70.0)
-            mgkg = st.number_input('Dose (mg/kg)', 0.1, 500.0, 15.0)
-            doses = st.number_input('Doses/day', 1, 24, 3)
-            total = wt * mgkg
-            daily = total * doses
-            c1,c2,c3 = st.columns(3)
-            c1.metric('Single dose', f'{total:.2f} mg')
-            c2.metric('Daily dose', f'{daily:.2f} mg')
-            c3.metric('Daily dose', f'{daily/1000:.3f} g')
-            interp('Interpretation: the app multiplies body weight by the intended mg/kg dose and then by doses/day to estimate total daily exposure.', 'note')
-        with t3:
-            crcl = st.number_input('Creatinine clearance / eGFR', 1.0, 200.0, 90.0)
-            maxdose = st.number_input('Max daily dose (mg)', 1.0, 10000.0, 3000.0)
-            st.metric('Dose headroom', f'{max(0, maxdose-daily):.1f} mg')
-            if crcl < 30:
-                decision_box('Borderline', 'Renal function is reduced by the entered value.', 'Review renal dosing and consider interval adjustment.', 'Rapidly rising creatinine, oliguria, severe toxicity concern')
-            else:
-                decision_box('Normal', 'Entered renal function does not cross the low-function alert threshold.', 'Proceed with routine dose verification.', 'Unexpected adverse effects or uncertain renal baseline')
-
-    elif dept == 'Metabolic and General Medicine':
-        w = st.number_input('Weight (kg)', 5.0, 300.0, 70.0)
-        h = st.number_input('Height (cm)', 50.0, 250.0, 170.0)
-        waist = st.number_input('Waist (cm)', 20.0, 250.0, 85.0)
-        sbp = st.number_input('SBP (mmHg)', 50, 250, 120)
-        dbp = st.number_input('DBP (mmHg)', 30, 150, 80)
-        abx = st.selectbox('Antibiotic', ['â€” Select â€”'] + sorted(AWARE_DB.keys()))
-        bmi = w / ((h/100)**2)
-        bsa = math.sqrt((w*h)/3600)
-        wht = waist / h
-        mapv = (sbp + 2*dbp) / 3
-        c1,c2,c3,c4 = st.columns(4)
-        c1.metric('BMI', f'{bmi:.2f}')
-        c2.metric('BSA', f'{bsa:.2f} mÂ²')
-        c3.metric('Waist/Height', f'{wht:.2f}')
-        c4.metric('MAP', f'{mapv:.1f} mmHg')
-        if bmi >= 30:
-            decision_box('High-risk', 'BMI is in the obesity range by the quick adult screening threshold.', 'Assess comorbidity risk, waist pattern, and management plan.', 'Severe obesity with uncontrolled BP, diabetes, breathlessness')
-        elif bmi >= 25:
-            decision_box('Borderline', 'BMI is in the overweight range by the quick adult screening threshold.', 'Advise risk review, diet and activity assessment.', 'Rapid weight gain or obesity-related complications')
-        else:
-            decision_box('Normal', 'BMI is below the quick overweight threshold used here.', 'Continue context-based metabolic risk assessment.', 'Unintentional weight loss or systemic illness')
-        if abx != 'â€” Select â€”':
-            cat = AWARE_DB[abx]
-            klass = {'ACCESS':'badge-access','WATCH':'badge-watch','RESERVE':'badge-reserve'}[cat]
-            st.markdown(f"<span class='{klass}'>{abx}: {cat}</span>", unsafe_allow_html=True)
-            interp(f'{abx} is categorized as {cat} in this stewardship view to support antibiotic-use awareness.', 'note')
-
-    elif dept == 'Pediatrics and Growth':
-        t1, t2, t3 = st.tabs(['Growth','Growth Chart View','Vaccines'])
-        with t1:
-            gender = st.radio('Gender', ['Male','Female'], horizontal=True)
-            age = st.number_input('Age (years)', 5, 18, 10)
-            wt = st.number_input('Weight (kg)', 5.0, 120.0, 30.0)
-            ht = st.number_input('Height (cm)', 80.0, 200.0, 135.0)
-            nearest = min(GROWTH_REF[gender].keys(), key=lambda x: abs(x - age))
-            wm,wsd,hm,hsd = GROWTH_REF[gender][nearest]
-            wz = (wt - wm) / wsd
-            hz = (ht - hm) / hsd
-            c1,c2,c3,c4 = st.columns(4)
-            c1.metric('Weight Z', f'{wz:.2f}')
-            c2.metric('Weight percentile', f'{z_to_percentile(wz)}th')
-            c3.metric('Height Z', f'{hz:.2f}')
-            c4.metric('Height percentile', f'{z_to_percentile(hz)}th')
-            wt2 = st.number_input('Weight for fluids (kg)', 1.0, 120.0, 20.0, key='pedfluids')
-            maint = wt2*100 if wt2 <= 10 else 1000 + (wt2-10)*50 if wt2 <= 20 else 1500 + (wt2-20)*20
-            temp = st.number_input('Temperature (Â°C)', 35.0, 43.0, 38.5)
-            dosemgkg = st.number_input('Paracetamol-like dose (mg/kg)', 0.1, 30.0, 15.0)
-            c5,c6,c7 = st.columns(3)
-            c5.metric('Maintenance/day', f'{maint:.0f} mL/day')
-            c6.metric('Hourly rate', f'{maint/24:.1f} mL/hr')
-            c7.metric('Single dose', f'{wt2*dosemgkg:.1f} mg')
-            if wz < -3 or hz < -3:
-                decision_box('High-risk', 'Growth Z score is far below the reference mean.', 'Urgent pediatric growth/nutrition review is advisable.', 'Edema, severe wasting, dehydration, systemic illness')
-            elif wz < -2 or hz < -2:
-                decision_box('Borderline', 'Growth Z score is below the usual screening threshold.', 'Arrange formal anthropometry review and feeding history.', 'Crossing centiles, developmental concern, recurrent infection')
-            else:
-                decision_box('Normal', 'Growth values are not below the low screening threshold used here.', 'Continue routine growth monitoring.', 'Weight loss, feeding intolerance, chronic symptoms')
-            if temp >= 38.0:
-                interp('Fever is present by the entered temperature.', 'alert-yellow')
-        with t2:
-            age_points = sorted(GROWTH_REF[gender].keys()) if 'gender' in locals() else sorted(GROWTH_REF['Male'].keys())
-            sel_gender = gender if 'gender' in locals() else 'Male'
-            st.line_chart({
-                'Weight mean': [GROWTH_REF[sel_gender][a][0] for a in age_points],
-                'Height mean': [GROWTH_REF[sel_gender][a][2] for a in age_points]
-            })
-            interp('This simple chart shows reference mean growth values by age for the selected sex. It is a quick visual aid, not a full WHO/IAP percentile chart renderer.', 'note')
-        with t3:
-            child_age = st.selectbox('Child age band', [x[0] for x in VACCINE_SCHEDULE])
-            for band, vaccines in VACCINE_SCHEDULE:
-                if band == child_age:
-                    st.markdown(f"<div class='card'><h3>{band}</h3><p>{vaccines}</p></div>", unsafe_allow_html=True)
-            dob = st.date_input('Date of birth for next-vaccine planning', value=date.today() - timedelta(days=42), key='dob_vax')
-            weeks = st.selectbox('Target visit', ['6 weeks','10 weeks','14 weeks','9 months','16-24 months'])
-            days_map = {'6 weeks':42, '10 weeks':70, '14 weeks':98, '9 months':270, '16-24 months':540}
-            due = dob + timedelta(days=days_map[weeks])
-            st.metric('Planned vaccine date', str(due))
-            interp('This vaccine planner is aligned to an India-style UIP quick schedule view and helps estimate the due date from the date of birth.', 'note')
-
-    elif dept == 'Cardiology (Lipids and Risk)':
-        tc = st.number_input('Total cholesterol (mg/dL)', 50, 500, 200)
-        hdl = st.number_input('HDL-C (mg/dL)', 10, 150, 45)
-        tg = st.number_input('Triglycerides (mg/dL)', 10, 1000, 150)
-        sbp = st.number_input('SBP', 50, 250, 120)
-        dbp = st.number_input('DBP', 30, 150, 80)
-        ldl_s = sampson_ldl(tc, hdl, tg)
-        nonhdl = tc - hdl
-        ratio = tc / hdl if hdl else 0
-        mapv = (sbp + 2*dbp)/3
-        pp = sbp - dbp
-        c1,c2,c3,c4,c5 = st.columns(5)
-        c1.metric('LDL-C (Sampson)', f'{ldl_s:.1f}')
-        c2.metric('Non-HDL-C', f'{nonhdl:.1f}')
-        c3.metric('TC/HDL', f'{ratio:.1f}')
-        c4.metric('MAP', f'{mapv:.1f}')
-        c5.metric('Pulse pressure', f'{pp:.1f}')
-        if sbp >= 180 or dbp >= 120:
-            decision_box('High-risk', 'Blood pressure is in a severely elevated range.', 'Urgent reassessment with symptom review is needed.', 'Chest pain, neuro deficit, pulmonary edema, severe headache')
-        elif sbp >= 140 or dbp >= 90:
-            decision_box('Borderline', 'Blood pressure is above a common clinic hypertension threshold.', 'Repeat properly and assess overall cardiovascular risk.', 'End-organ symptoms or very high repeat readings')
-        else:
-            decision_box('Normal', 'Blood pressure is below the quick hypertension alert threshold used here.', 'Continue routine cardiovascular risk review.', 'Persistent symptoms despite normal office readings')
-
-    elif dept == 'Gastroenterology (Hepatology)':
-        female = st.checkbox('Female sex')
-        cr = st.number_input('Creatinine (mg/dL)', 0.1, 15.0, 1.0)
-        bili = st.number_input('Bilirubin (mg/dL)', 0.1, 50.0, 1.0)
-        inr = st.number_input('INR', 0.1, 15.0, 1.1)
-        na = st.number_input('Sodium (mmol/L)', 100, 150, 137)
-        albumin = st.number_input('Albumin (g/dL)', 1.0, 6.0, 3.5)
-        cr_c = max(1.0, min(4.0, cr))
-        bili_c = max(1.0, bili)
-        inr_c = max(1.0, inr)
-        na_b = max(125, min(137, na))
-        meld = 10 * ((0.957*math.log(cr_c)) + (0.378*math.log(bili_c)) + (1.12*math.log(inr_c))) + 6.43
-        meld_na = meld + 1.32 * (137 - na_b) - (0.033 * meld * (137 - na_b))
-        meld_na = max(6, min(40, meld_na))
-        meld_3 = meld3(bili, inr, cr, na, albumin, female)
-        c1,c2,c3 = st.columns(3)
-        c1.metric('MELD', f'{meld:.1f}')
-        c2.metric('MELD-Na', f'{meld_na:.1f}')
-        c3.metric('MELD 3.0', str(meld_3))
-        if meld_3 >= 30:
-            decision_box('High-risk', 'MELD 3.0 is markedly elevated.', 'Urgent hepatology or transplant-context review is advisable.', 'Encephalopathy, active bleeding, renal decline, severe hyponatremia')
-        elif meld_3 >= 20:
-            decision_box('Borderline', 'MELD 3.0 is elevated and may reflect important liver disease severity.', 'Review liver failure complications and follow-up urgency.', 'Rapid decompensation, infection, variceal bleed')
-        else:
-            decision_box('Normal', 'MELD 3.0 is not in the higher alert bands used here.', 'Continue disease-context review and surveillance.', 'Any acute decompensation signs')
-
-    elif dept == 'Neurology (Emergency)':
-        e = st.select_slider('Eye', options=[1,2,3,4], value=4)
-        v = st.select_slider('Verbal', options=[1,2,3,4,5], value=5)
-        m = st.select_slider('Motor', options=[1,2,3,4,5,6], value=6)
-        pup = st.selectbox('Pupils', ['Both reactive','One unreactive','Both unreactive'])
-        face = st.checkbox('Face droop')
-        arm = st.checkbox('Arm weakness')
-        speech = st.checkbox('Speech abnormal')
-        onset = st.number_input('Onset hours', 0.0, 72.0, 2.0)
-        pscore = {'Both reactive':0,'One unreactive':1,'Both unreactive':2}[pup]
-        gcs = e + v + m
-        gcsp = gcs - pscore
-        c1,c2,c3 = st.columns(3)
-        c1.metric('GCS', f'{gcs}/15')
-        c2.metric('GCS-P', f'{gcsp}/15')
-        c3.metric('FAST positive count', str(sum([face, arm, speech])))
-        st.metric('Thrombolysis window', 'Possible' if onset <= 4.5 else 'Outside 4.5h')
-        if sum([face, arm, speech]) >= 2 and onset <= 4.5:
-            decision_box('High-risk', 'Multiple FAST features are present within a potentially actionable time window.', 'Activate urgent stroke pathway and imaging workflow.', 'Declining consciousness, seizure, airway compromise')
-        elif sum([face, arm, speech]) >= 1:
-            decision_box('Borderline', 'At least one FAST feature is present.', 'Prompt neurological review is appropriate.', 'New deficit progression or reduced GCS')
-        else:
-            decision_box('Normal', 'No FAST feature was selected in this screen.', 'Use clinical context; not all strokes are FAST-positive.', 'Any persistent new focal deficit')
-
-    elif dept == 'Nephrology (eGFR Suite)':
-        scr = st.number_input('Creatinine (mg/dL)', 0.1, 15.0, 1.0)
-        age = st.number_input('Age', 18, 110, 50)
-        gender = st.selectbox('Sex', ['Male','Female'])
-        protein = st.selectbox('Proteinuria', ['Negative','Trace','1+','2+','3+'])
-        gfr = ckd_epi_2021(scr, age, gender == 'Female')
-        stage = 'G1' if gfr >= 90 else 'G2' if gfr >= 60 else 'G3a' if gfr >= 45 else 'G3b' if gfr >= 30 else 'G4' if gfr >= 15 else 'G5'
-        c1,c2,c3 = st.columns(3)
-        c1.metric('eGFR (CKD-EPI 2021)', f'{gfr:.1f}')
-        c2.metric('CKD stage', stage)
-        c3.metric('Nephrology flag', 'Yes' if protein in ['2+','3+'] else 'No')
-        if gfr < 30:
-            decision_box('High-risk', 'eGFR is in a severe reduction range.', 'Urgent renal review, medication review, and complication assessment are advisable.', 'Hyperkalemia, fluid overload, uremic symptoms')
-        elif gfr < 60:
-            decision_box('Borderline', 'eGFR is below 60 mL/min/1.73mÂ², an important CKD threshold if persistent.', 'Repeat, confirm chronicity, and assess albuminuria/proteinuria.', 'Rapid decline, nephrotic syndrome, refractory hypertension')
-        else:
-            decision_box('Normal', 'eGFR is not below the common CKD stage 3 threshold used in this quick screen.', 'Continue kidney-risk review in clinical context.', 'Proteinuria despite preserved eGFR')
-
-    elif dept == 'Ophthalmology and Orthopedics':
-        iop = st.number_input('Measured IOP', 5, 60, 20)
-        cct = st.number_input('CCT (Î¼m)', 300, 800, 545)
-        prior_fx = st.checkbox('Prior fragility fracture')
-        smoker = st.checkbox('Smoker')
-        steroid = st.checkbox('Steroid use')
-        corrected = iop + ((545 - cct) / 50 * 2.5)
-        score = (3 if prior_fx else 0) + (1 if smoker else 0) + (2 if steroid else 0)
-        c1,c2 = st.columns(2)
-        c1.metric('Corrected IOP', f'{corrected:.1f} mmHg')
-        c2.metric('Bone risk score', f'{score}/6')
-        if corrected > 30:
-            decision_box('High-risk', 'Corrected IOP is markedly elevated.', 'Urgent ophthalmology review is appropriate.', 'Painful red eye, sudden vision change, nausea/vomiting')
-        elif corrected > 21:
-            decision_box('Borderline', 'Corrected IOP is above a common screening threshold.', 'Arrange ophthalmic review and correlate with disc/field findings.', 'Visual symptoms or angle-closure features')
-        else:
-            decision_box('Normal', 'Corrected IOP is not above the quick alert threshold used here.', 'Continue routine eye-risk assessment.', 'Any acute visual warning sign')
-
-    elif dept == 'OB/GYN':
-        lmp = st.date_input('LMP date', value=date.today())
-        cycle = st.number_input('Cycle length (days)', 21, 45, 28)
-        bishop = st.number_input('Bishop score', 0, 13, 5)
-        si = st.number_input('Shock index', 0.1, 3.0, 0.8)
-        apgar = st.number_input('APGAR score', 0, 10, 9)
-        ga_weeks = (date.today() - lmp).days / 7
-        edd = lmp + timedelta(days=280 + (cycle - 28))
-        c1,c2,c3,c4,c5 = st.columns(5)
-        c1.metric('Gestational age', f'{ga_weeks:.1f} weeks')
-        c2.metric('EDD', str(edd))
-        c3.metric('Labor readiness', 'Favorable' if bishop >= 8 else 'Unfavorable')
-        c4.metric('Shock risk', 'High' if si >= 0.9 else 'Lower')
-        c5.metric('APGAR', f'{apgar}/10')
-        if bishop >= 8:
-            decision_box('Normal', 'Bishop score is in a commonly favorable range for induction readiness.', 'Proceed with labor plan per obstetric context.', 'Bleeding, fetal distress, maternal instability')
-        elif bishop >= 6:
-            decision_box('Borderline', 'Bishop score is intermediate rather than clearly favorable.', 'Consider reassessment or cervical ripening context.', 'Maternal or fetal compromise')
-        else:
-            decision_box('Borderline', 'Bishop score is not yet favorable.', 'Cervical ripening strategy may be needed before induction.', 'Any obstetric emergency overrides score-based planning')
-
-    elif dept == 'ICU / Critical Care':
-        hr = st.number_input('Heart rate', 20, 250, 100)
-        sbp = st.number_input('SBP', 30, 250, 110)
-        pao2 = st.number_input('PaO2', 20, 500, 80)
-        fio2 = st.number_input('FiO2 (%)', 21, 100, 40)
-        gcs = st.number_input('GCS', 3, 15, 15)
-        lact = st.number_input('Lactate', 0.1, 20.0, 1.5)
-        mapv = st.number_input('MAP', 20, 150, 70)
-        shock = hr / sbp
-        pfr = pao2 / (fio2/100)
-        c1,c2,c3,c4 = st.columns(4)
-        c1.metric('Shock index', f'{shock:.2f}')
-        c2.metric('P/F ratio', f'{pfr:.0f}')
-        c3.metric('Sepsis concern', 'High' if lact >= 2.0 or mapv < 65 else 'Lower')
-        c4.metric('Neuro concern', 'Yes' if gcs <= 8 else 'No')
-        if pfr < 200 or shock >= 1.0 or mapv < 65:
-            decision_box('High-risk', 'Oxygenation and/or perfusion variables are concerning.', 'Urgent critical care reassessment is advisable.', 'Escalating oxygen need, hypotension, altered sensorium')
-        elif pfr < 300 or lact >= 2.0:
-            decision_box('Borderline', 'There is moderate concern for impaired oxygenation or tissue hypoperfusion.', 'Repeat measurements and correlate with overall ICU picture.', 'Rising lactate, worsening gas exchange')
-        else:
-            decision_box('Normal', 'The entered perfusion and oxygenation values do not cross the alert thresholds used here.', 'Continue routine monitoring.', 'Any sudden deterioration')
-
-    elif dept == 'Emergency Medicine':
-        rr = st.number_input('Respiratory rate', 4, 60, 18)
-        spo2 = st.number_input('SpO2', 40, 100, 97)
-        temp = st.number_input('Temperature (Â°C)', 34.0, 43.0, 37.0)
-        gcs = st.number_input('GCS', 3, 15, 15)
-        sbp = st.number_input('SBP', 30, 250, 120)
-        hr = st.number_input('Heart rate', 20, 250, 90)
-        infection = st.checkbox('Suspected infection')
-        mental = st.checkbox('Altered mental state')
-        shock = hr / sbp
-        qsofa_like = sum([mental, rr >= 22, sbp <= 100])
-        c1,c2,c3,c4 = st.columns(4)
-        c1.metric('Red flag', 'Yes' if rr > 24 or spo2 < 92 or temp >= 39.0 else 'No')
-        c2.metric('Shock index', f'{shock:.2f}')
-        c3.metric('Trauma concern', 'High' if gcs <= 12 or shock >= 1.0 else 'Lower')
-        c4.metric('qSOFA', str(qsofa_like))
-        if infection and qsofa_like >= 2:
-            decision_box('High-risk', 'Suspected infection with qSOFA 2 or more increases concern for sepsis-related deterioration.', 'Urgent sepsis assessment and escalation are advisable.', 'Persistent hypotension, severe hypoxia, reduced GCS')
-        elif qsofa_like == 1 or shock >= 1.0:
-            decision_box('Borderline', 'At least one instability feature is present.', 'Repeat vitals, reassess trajectory, and watch closely.', 'Rapid worsening, cyanosis, refractory hypotension')
-        else:
-            decision_box('Normal', 'The entered data do not trigger the high sepsis-risk screen used here.', 'Continue routine triage with clinical judgment.', 'Any new organ dysfunction')
-
-    elif dept == 'Hematology':
-        hb = st.number_input('Hemoglobin', 1.0, 25.0, 12.0)
-        mcv = st.number_input('MCV', 40.0, 130.0, 85.0)
-        wbc = st.number_input('WBC', 0.1, 200.0, 7.0)
-        neut = st.number_input('Neutrophils %', 0.0, 100.0, 60.0)
-        bands = st.number_input('Bands %', 0.0, 50.0, 0.0)
-        platelets = st.number_input('Platelets', 1.0, 1000.0, 250.0)
-        mentzer = mcv / hb if hb else 0
-        anc = wbc * (neut + bands) / 100
-        c1,c2,c3 = st.columns(3)
-        c1.metric('Mentzer index', f'{mentzer:.2f}')
-        c2.metric('ANC', f'{anc:.2f} x10^9/L')
-        c3.metric('Platelet flag', 'Low' if platelets < 150 else 'Normal')
-        if anc < 0.5:
-            decision_box('High-risk', 'Absolute neutrophil count is severely low.', 'Urgent infection-risk assessment is required.', 'Fever with neutropenia, sepsis signs')
-        elif mentzer >= 13:
-            decision_box('Borderline', 'Mentzer index leans toward iron-deficiency pattern in microcytic screening logic.', 'Correlate with ferritin and smear.', 'Symptomatic anemia or bleeding')
-        else:
-            decision_box('Borderline', 'Mentzer index leans toward thalassemia-trait pattern in screening logic.', 'Correlate with RBC indices and confirmatory testing.', 'Severe anemia or hemolysis signs')
-
-    elif dept == 'HIV / ART Follow-up':
-        t1, t2 = st.tabs(['ART Planner','Follow-up Interpretation'])
-        with t1:
-            art_start = st.date_input('ART start date', value=date.today())
-            tb_coinfection = st.checkbox('TB coinfection present')
-            cd4_lt_50 = st.checkbox('CD4 < 50 cells/ÂµL')
-            follow_4w = art_start + timedelta(days=28)
-            follow_3m = art_start + timedelta(days=90)
-            follow_6m = art_start + timedelta(days=180)
-            follow_12m = art_start + timedelta(days=365)
-            c1,c2,c3,c4 = st.columns(4)
-            c1.metric('4-week review', str(follow_4w))
-            c2.metric('3-month review', str(follow_3m))
-            c3.metric('6-month review', str(follow_6m))
-            c4.metric('12-month review', str(follow_12m))
-            if tb_coinfection:
-                if cd4_lt_50:
-                    decision_box('Borderline', 'TB coinfection with very low CD4 usually supports earlier ART timing in many care frameworks.', 'Align with HIV/TB protocol and monitor IRIS risk.', 'Severe TB, CNS disease, adherence barriers')
-                else:
-                    decision_box('Borderline', 'TB coinfection still usually requires timely ART planning.', 'Coordinate HIV and TB follow-up schedules carefully.', 'Clinical deterioration or drug-toxicity concerns')
-        with t2:
-            interp('Quick schedule logic: early post-ART follow-up is important for adherence, adverse effects, and virologic monitoring. This page is a planning aid, not a replacement for NACO or local HIV clinic protocol.', 'note')
-
-    st.markdown('---')
-    st.download_button('Export Report', export_note(f'IndiMed Pro Report\nDepartment: {dept}\nDate: {date.today()}\n'), f'IndiMed_{date.today()}.txt')
-    st.markdown("<div class='alert-red'>Clinical Decision Support only. Added modules include pediatric growth support, India-style vaccine schedule planning, and ART follow-up date planning. All outputs require clinician verification before patient treatment decisions.</div>", unsafe_allow_html=True)
+    dept=st.session_state.selected_dept
+    top1,top2=st.columns([5,1])
+    with top1: st.markdown(f"<div class='hero'><h1>{DEPT_ICONS.get(dept,'â€¢')} {dept}</h1><p>Full framework: persistence, trend logging, structured summary, and guideline-linked export</p></div>", unsafe_allow_html=True)
+    with top2: st.button('Home', on_click=go_home)
+    summary, cite = generic_department_framework(dept, patient)
+    st.download_button('Export guideline-linked HTML report', html_report(patient, dept, summary, cite), f'IndiMed_{dept[:10]}_{date.today()}.html')
+    interp('Clinical decision support only. This production-style build uses local SQLite persistence and can be migrated to a cloud database for durable multi-user storage.', 'alert-red')
