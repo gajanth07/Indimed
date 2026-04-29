@@ -5,6 +5,7 @@ from pathlib import Path
 
 st.set_page_config(page_title='IndiMed Pro 2026', layout='wide')
 
+# ---------- Storage ----------
 def resolve_db_path():
     candidates = [Path('output/indimed_clinic.db'), Path('/tmp/indimed_clinic.db'), Path(tempfile.gettempdir()) / 'indimed_clinic.db']
     for p in candidates:
@@ -19,6 +20,18 @@ def resolve_db_path():
 
 DB_PATH = resolve_db_path()
 
+@st.cache_resource
+def get_conn(db_path_str):
+    conn = sqlite3.connect(db_path_str, check_same_thread=False)
+    conn.execute('CREATE TABLE IF NOT EXISTS patients (patient_id TEXT PRIMARY KEY, name TEXT, age TEXT, sex TEXT, updated_at TEXT)')
+    conn.execute('CREATE TABLE IF NOT EXISTS records (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id TEXT, dept TEXT, summary TEXT, created_at TEXT)')
+    conn.execute('CREATE TABLE IF NOT EXISTS trends (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id TEXT, dept TEXT, metric TEXT, value REAL, unit TEXT, created_at TEXT)')
+    conn.commit()
+    return conn
+
+conn = get_conn(str(DB_PATH))
+
+# ---------- Styles ----------
 st.markdown('''
 <style>
 :root { --bg:#eef5fb; --surface:#ffffff; --border:#d7e5f2; --text:#0f172a; --muted:#5b6b81; --primary:#175b9e; --primary2:#1c7ed6; --teal:#14b8a6; }
@@ -31,27 +44,22 @@ section[data-testid="stSidebar"] { display:none !important; }
 .card h3 {margin:0 0 .5rem; color:#13385d; font-size:1rem;} .card p {margin:0 0 1rem; color:#5b6b81 !important; min-height:48px;}
 .surface {background:#fff; border:1px solid var(--border); border-radius:20px; padding:16px; margin-top:14px;}
 .section-title {font-size:1.1rem; font-weight:800; color:#13385d; margin:1rem 0 .5rem 0;}
-.stButton>button,.stDownloadButton>button {width:100%!important; border:none!important; border-radius:14px!important; font-weight:700!important; color:white!important; min-height:44px;} 
+.stButton>button,.stDownloadButton>button {width:100%!important; border:none!important; border-radius:14px!important; font-weight:700!important; color:white!important; min-height:44px;}
 .stButton>button {background:linear-gradient(135deg,var(--primary),var(--primary2))!important;} .stDownloadButton>button {background:linear-gradient(135deg,#0f766e,var(--teal))!important;}
 [data-testid="stMetric"] {background:#fff; border:1px solid var(--border); border-radius:18px; padding:14px;}
 .note,.alert-red,.alert-yellow,.alert-green {padding:13px 15px; border-radius:16px; font-weight:600; margin:.6rem 0;}
 .note {background:#eef7ff; border:1px solid #cfe4fa; color:#1d4f91;} .alert-red {background:#fff4f4; border:1px solid #ffd7d7; color:#9f1239;} .alert-yellow {background:#fffaf0; border:1px solid #fde3a7; color:#9a6700;} .alert-green {background:#effdf7; border:1px solid #b7efd7; color:#0f766e;}
-.badge-due,.badge-overdue,.badge-upcoming {padding:5px 10px; border-radius:999px; font-weight:700; display:inline-block; font-size:.8rem; margin:.2rem .35rem .2rem 0;} .badge-due{background:#fee2e2;color:#991b1b;} .badge-overdue{background:#fff1f2;color:#be123c;} .badge-upcoming{background:#dbeafe;color:#1d4ed8;}
+.badge-due,.badge-overdue,.badge-upcoming,.badge-done {padding:5px 10px; border-radius:999px; font-weight:700; display:inline-block; font-size:.8rem; margin:.2rem .35rem .2rem 0;}
+.badge-due{background:#fee2e2;color:#991b1b;} .badge-overdue{background:#fff1f2;color:#be123c;} .badge-upcoming{background:#dbeafe;color:#1d4ed8;} .badge-done{background:#dcfce7;color:#166534;}
 </style>
 ''', unsafe_allow_html=True)
 
-@st.cache_resource
-def get_conn(db_path_str):
-    conn = sqlite3.connect(db_path_str, check_same_thread=False)
-    conn.execute('CREATE TABLE IF NOT EXISTS patients (patient_id TEXT PRIMARY KEY, name TEXT, age TEXT, sex TEXT, updated_at TEXT)')
-    conn.execute('CREATE TABLE IF NOT EXISTS records (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id TEXT, dept TEXT, summary TEXT, created_at TEXT)')
-    conn.execute('CREATE TABLE IF NOT EXISTS trends (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id TEXT, dept TEXT, metric TEXT, value REAL, unit TEXT, created_at TEXT)')
-    conn.commit()
-    return conn
-conn = get_conn(str(DB_PATH))
-
+# ---------- Helpers ----------
 def query_rows(sql, params=()):
-    cur = conn.cursor(); cur.execute(sql, params); rows = cur.fetchall(); cols = [d[0] for d in cur.description] if cur.description else []
+    cur = conn.cursor()
+    cur.execute(sql, params)
+    rows = cur.fetchall()
+    cols = [d[0] for d in cur.description] if cur.description else []
     return rows, cols
 
 def save_patient(patient_id, name, age, sex):
@@ -68,12 +76,18 @@ def save_trend(patient_id, dept, metric, value, unit=''):
     conn.commit()
 
 def schedule_badge(d):
-    if d < date.today(): return 'badge-overdue', 'Overdue'
-    if d == date.today(): return 'badge-due', 'Due today'
+    today = date.today()
+    if d < today:
+        return 'badge-overdue', 'Overdue'
+    if d == today:
+        return 'badge-due', 'Due today'
     return 'badge-upcoming', 'Upcoming'
 
 def interp(msg, style='note'):
     st.markdown(f"<div class='{style}'>{msg}</div>", unsafe_allow_html=True)
+
+def safe_log(v):
+    return math.log(max(v, 1))
 
 def sampson_ldl(tc, hdl, tg):
     non_hdl = tc - hdl
@@ -93,10 +107,38 @@ def kg_to_lb(kg): return kg * 2.20462
 def cm_to_in(cm): return cm / 2.54
 def mg_to_mmol_ldl(v): return v / 38.67
 
+# ---------- Vaccine schedule ----------
+VACCINE_SCHEDULE = [
+    ('Birth', 0, 'BCG, OPV-0, Hepatitis B birth dose'),
+    ('6 weeks', 42, 'DTwP/DTaP-1, IPV-1, Hib-1, Hepatitis B-2, Rotavirus-1, PCV-1'),
+    ('10 weeks', 70, 'DTwP/DTaP-2, IPV-2, Hib-2, Rotavirus-2, PCV-2'),
+    ('14 weeks', 98, 'DTwP/DTaP-3, IPV-3/fIPV-2, Hib-3, Rotavirus-3 if applicable, PCV-3'),
+    ('6 months', 180, 'Influenza may begin depending on plan, Hepatitis B-3 depending on schedule'),
+    ('9 months', 270, 'MMR-1, Typhoid conjugate vaccine'),
+    ('12 months', 365, 'Hepatitis A-1, Varicella-1'),
+    ('15 months', 455, 'MMR-2, Varicella-2, PCV booster'),
+    ('16-24 months', 540, 'DPT booster-1, OPV booster'),
+    ('5 years', 1825, 'DPT/DTaP booster'),
+    ('10 years', 3650, 'Td/Tdap'),
+    ('16 years', 5840, 'Td booster')
+]
+
+def render_vaccine_schedule(dob):
+    st.markdown("<div class='section-title'>Vaccine Schedule</div>", unsafe_allow_html=True)
+    last_due = None
+    for label, day_offset, vaccines in VACCINE_SCHEDULE:
+        due = dob + timedelta(days=day_offset)
+        badge, status = schedule_badge(due)
+        last_due = due
+        st.markdown(f"<div class='card'><h3>{label} <span class='{badge}'>{status}</span></h3><p>Date: {due}<br>{vaccines}</p></div>", unsafe_allow_html=True)
+    if last_due:
+        interp(f'Full DOB-based vaccine schedule shown through the last listed milestone on {last_due}.', 'alert-green')
+
+# ---------- Department list ----------
 DEPTS = [
     ('Medication Safety and Dose', 'Drug interaction checks, dose support, renal safety.'),
     ('Metabolic and General Medicine', 'BMI, BSA, MAP, stewardship support.'),
-    ('Pediatrics and Growth', 'Growth, vaccines, fluids, fever dosing.'),
+    ('Pediatrics and Growth', 'Growth, vaccine schedule, fluids, fever dosing.'),
     ('Neonatology', 'Prematurity, APGAR, corrected age, feeds.'),
     ('Cardiology and Lipids', 'LDL-C, BP, lipid and cardiovascular support.'),
     ('Gastroenterology and Hepatology', 'Liver scores and severity support.'),
@@ -110,6 +152,7 @@ DEPTS = [
     ('HIV and ART Follow-up', 'ART milestone planning and support.')
 ]
 
+# ---------- State ----------
 if 'page' not in st.session_state: st.session_state.page = 'home'
 if 'selected_dept' not in st.session_state: st.session_state.selected_dept = DEPTS[0][0]
 if 'patient_id' not in st.session_state: st.session_state.patient_id = ''
@@ -117,10 +160,15 @@ if 'patient_name' not in st.session_state: st.session_state.patient_name = ''
 if 'patient_age' not in st.session_state: st.session_state.patient_age = ''
 if 'patient_sex' not in st.session_state: st.session_state.patient_sex = 'Male'
 
-def go_home(): st.session_state.page = 'home'
-def open_dept(name): st.session_state.selected_dept = name; st.session_state.page = 'dept'
+def go_home():
+    st.session_state.page = 'home'
 
-st.markdown("<div class='hero'><h1>IndiMed Pro 2026</h1><p>All departments now have working calculations, with clean cards and one combined workflow section below.</p></div>", unsafe_allow_html=True)
+def open_dept(name):
+    st.session_state.selected_dept = name
+    st.session_state.page = 'dept'
+
+# ---------- Home ----------
+st.markdown("<div class='hero'><h1>IndiMed Pro 2026</h1><p>Refined and checked build with active calculations in every department and a separate DOB-based vaccine schedule section through the last schedule milestone.</p></div>", unsafe_allow_html=True)
 
 if st.session_state.page == 'home':
     st.markdown("<div class='section-title'>Departments</div>", unsafe_allow_html=True)
@@ -163,7 +211,7 @@ if st.session_state.page == 'home':
         interp('No patient records saved yet.')
 
     st.markdown("<div class='section-title'>Trend Charts Over Time</div>", unsafe_allow_html=True)
-    trow, tcol = query_rows('SELECT patient_id,dept,metric,value,unit,created_at FROM trends ORDER BY created_at DESC LIMIT 200')
+    trow, tcol = query_rows('SELECT patient_id,dept,metric,value,unit,created_at FROM trends ORDER BY created_at DESC LIMIT 500')
     if trow:
         trend_data = [dict(zip(tcol, r)) for r in trow]
         metrics = sorted(set(x['metric'] for x in trend_data))
@@ -174,12 +222,21 @@ if st.session_state.page == 'home':
     else:
         interp('No trend data available yet.')
 
+    dob_home = st.date_input('Date of birth for vaccine schedule', value=date.today() - timedelta(days=200), key='home_vaccine_dob')
+    render_vaccine_schedule(dob_home)
+
+# ---------- Department pages ----------
 else:
     dept = st.session_state.selected_dept
-    st.markdown(f"<div class='hero'><h1>{dept}</h1><p>Department calculations verified and active.</p></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='hero'><h1>{dept}</h1><p>Department calculations refined and active.</p></div>", unsafe_allow_html=True)
     st.button('Back to Home', on_click=go_home)
 
-    patient = {'patient_id': st.session_state.patient_id, 'name': st.session_state.patient_name, 'age': st.session_state.patient_age, 'sex': st.session_state.patient_sex}
+    patient = {
+        'patient_id': st.session_state.patient_id,
+        'name': st.session_state.patient_name,
+        'age': st.session_state.patient_age,
+        'sex': st.session_state.patient_sex,
+    }
     summary = f'{dept} opened.'
 
     if dept == 'Medication Safety and Dose':
@@ -199,29 +256,39 @@ else:
         h = st.number_input('Height cm', 50.0, 250.0, 170.0)
         sbp = st.number_input('SBP', 50, 250, 120)
         dbp = st.number_input('DBP', 30, 150, 80)
+        waist = st.number_input('Waist cm', 20.0, 250.0, 85.0)
         bmi = w / ((h/100)**2)
         bsa = math.sqrt((w*h)/3600)
         mapv = (sbp + 2*dbp) / 3
-        c1, c2, c3 = st.columns(3)
+        whtr = waist / h
+        c1, c2, c3, c4 = st.columns(4)
         c1.metric('BMI', f'{bmi:.2f}')
         c2.metric('BSA', f'{bsa:.2f} mÂ²')
         c3.metric('MAP', f'{mapv:.1f} mmHg')
+        c4.metric('Waist/Height', f'{whtr:.2f}')
         save_trend(patient['patient_id'], dept, 'BMI', bmi, 'kg/mÂ²')
-        summary = f'BMI {bmi:.2f}; BSA {bsa:.2f}; MAP {mapv:.1f}'
+        summary = f'BMI {bmi:.2f}; BSA {bsa:.2f}; MAP {mapv:.1f}; WHtR {whtr:.2f}'
 
     elif dept == 'Pediatrics and Growth':
-        wt = st.number_input('Weight kg', 1.0, 120.0, 10.0)
-        ht = st.number_input('Height cm', 30.0, 200.0, 75.0)
-        temp = st.number_input('Temperature Â°C', 35.0, 42.0, 37.5)
-        fluid = wt * 100 if wt <= 10 else 1000 + (wt-10)*50 if wt <= 20 else 1500 + (wt-20)*20
-        para = wt * 15
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric('Weight', f'{wt:.2f} kg')
-        c2.metric('Height', f'{ht:.2f} cm')
-        c3.metric('Maintenance fluid', f'{fluid:.0f} mL/day')
-        c4.metric('Paracetamol dose', f'{para:.0f} mg')
-        save_trend(patient['patient_id'], dept, 'Weight', wt, 'kg')
-        summary = f'Weight {wt:.2f}; Height {ht:.2f}; Fluid {fluid:.0f}; Fever temp {temp}'
+        tabs = st.tabs(['Growth and Fluids', 'Vaccine Schedule'])
+        with tabs[0]:
+            wt = st.number_input('Weight kg', 1.0, 120.0, 10.0)
+            ht = st.number_input('Height cm', 30.0, 200.0, 75.0)
+            temp = st.number_input('Temperature Â°C', 35.0, 42.0, 37.5)
+            fluid = wt * 100 if wt <= 10 else 1000 + (wt-10)*50 if wt <= 20 else 1500 + (wt-20)*20
+            para = wt * 15
+            ibuprofen = wt * 10
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric('Weight', f'{wt:.2f} kg')
+            c2.metric('Height', f'{ht:.2f} cm')
+            c3.metric('Maintenance fluid', f'{fluid:.0f} mL/day')
+            c4.metric('Paracetamol dose', f'{para:.0f} mg')
+            st.metric('Ibuprofen dose', f'{ibuprofen:.0f} mg')
+            save_trend(patient['patient_id'], dept, 'Weight', wt, 'kg')
+            summary = f'Weight {wt:.2f}; Height {ht:.2f}; Fluid {fluid:.0f}; Temp {temp}'
+        with tabs[1]:
+            dob = st.date_input('Date of birth', value=date.today() - timedelta(days=200), key='peds_dob')
+            render_vaccine_schedule(dob)
 
     elif dept == 'Neonatology':
         ga = st.number_input('Gestational age weeks', 22, 44, 36)
@@ -229,10 +296,12 @@ else:
         day_life = st.number_input('Day of life', 1, 28, 3)
         current_wt = st.number_input('Current weight kg', 0.5, 8.0, 2.8)
         feed = current_wt * (80 if day_life <= 1 else 100 if day_life <= 3 else 120 if day_life <= 7 else 150)
-        c1, c2, c3 = st.columns(3)
+        corrected_term_gap = max(0, 40 - ga)
+        c1, c2, c3, c4 = st.columns(4)
         c1.metric('Prematurity', 'Preterm' if ga < 37 else 'Term')
         c2.metric('Birth weight class', 'LBW' if birth_wt < 2500 else 'Normal')
         c3.metric('Feed target', f'{feed:.0f} mL/day')
+        c4.metric('Weeks to term gap', corrected_term_gap)
         save_trend(patient['patient_id'], dept, 'Neonate weight', current_wt, 'kg')
         summary = f'GA {ga}; birth wt {birth_wt}; feed {feed:.0f}'
 
@@ -245,33 +314,43 @@ else:
         ldl = sampson_ldl(tc, hdl, tg)
         nonhdl = tc - hdl
         mapv = (sbp + 2*dbp) / 3
-        c1, c2, c3 = st.columns(3)
+        ratio = tc / hdl if hdl else 0
+        c1, c2, c3, c4 = st.columns(4)
         c1.metric('LDL C', f'{ldl:.1f}')
         c2.metric('Non HDL', f'{nonhdl:.1f}')
         c3.metric('MAP', f'{mapv:.1f}')
+        c4.metric('TC/HDL ratio', f'{ratio:.2f}')
         save_trend(patient['patient_id'], dept, 'LDL C', ldl, 'mg/dL')
-        summary = f'LDL C {ldl:.1f}; Non HDL {nonhdl:.1f}'
+        summary = f'LDL C {ldl:.1f}; Non HDL {nonhdl:.1f}; Ratio {ratio:.2f}'
 
     elif dept == 'Gastroenterology and Hepatology':
         bili = st.number_input('Bilirubin', 0.1, 50.0, 1.0)
         inr = st.number_input('INR', 0.1, 15.0, 1.1)
         cr = st.number_input('Creatinine', 0.1, 15.0, 1.0)
-        meld = round(10*((0.957*math.log(max(1,cr))) + (0.378*math.log(max(1,bili))) + (1.12*math.log(max(1,inr)))) + 6.43, 1)
-        st.metric('MELD', meld)
+        na = st.number_input('Sodium', 100, 160, 137)
+        meld = round(10*((0.957*safe_log(cr)) + (0.378*safe_log(bili)) + (1.12*safe_log(inr))) + 6.43, 1)
+        meld_na = round(meld + 1.32*(137-max(125,min(137,na))) - (0.033*meld*(137-max(125,min(137,na)))), 1)
+        c1, c2 = st.columns(2)
+        c1.metric('MELD', meld)
+        c2.metric('MELD Na', meld_na)
         save_trend(patient['patient_id'], dept, 'MELD', meld, '')
-        summary = f'MELD {meld}'
+        summary = f'MELD {meld}; MELD Na {meld_na}'
 
     elif dept == 'Neurology and Emergency':
         e = st.select_slider('Eye response', [1,2,3,4], value=4)
         v = st.select_slider('Verbal response', [1,2,3,4,5], value=5)
         m = st.select_slider('Motor response', [1,2,3,4,5,6], value=6)
         onset = st.number_input('Stroke onset hours', 0.0, 72.0, 2.0)
+        pupils = st.selectbox('Pupils', ['Both reactive', 'One unreactive', 'Both unreactive'])
         gcs = e + v + m
-        c1, c2 = st.columns(2)
+        pupil_score = 0 if pupils == 'Both reactive' else 1 if pupils == 'One unreactive' else 2
+        gcsp = gcs - pupil_score
+        c1, c2, c3 = st.columns(3)
         c1.metric('GCS', f'{gcs}/15')
-        c2.metric('Thrombolysis window', 'Possible' if onset <= 4.5 else 'Late')
+        c2.metric('GCS P', f'{gcsp}/15')
+        c3.metric('Thrombolysis window', 'Possible' if onset <= 4.5 else 'Late')
         save_trend(patient['patient_id'], dept, 'GCS', gcs, '/15')
-        summary = f'GCS {gcs}; onset {onset} h'
+        summary = f'GCS {gcs}; GCS P {gcsp}; onset {onset} h'
 
     elif dept == 'Nephrology':
         scr = st.number_input('Creatinine mg/dL', 0.1, 15.0, 1.0)
@@ -289,8 +368,9 @@ else:
         iop = st.number_input('Measured IOP', 5, 60, 20)
         cct = st.number_input('CCT microns', 300, 800, 545)
         age = st.number_input('Age years', 18, 110, 50)
+        fragility = st.checkbox('Prior fragility fracture')
         corrected = iop + ((545 - cct) / 50 * 2.5)
-        bone_risk = age / 10
+        bone_risk = (age / 10) + (2 if fragility else 0)
         c1, c2 = st.columns(2)
         c1.metric('Corrected IOP', f'{corrected:.1f} mmHg')
         c2.metric('Bone risk score', f'{bone_risk:.1f}')
@@ -315,44 +395,57 @@ else:
         sbp = st.number_input('SBP', 30, 250, 110)
         pao2 = st.number_input('PaO2', 20, 500, 80)
         fio2 = st.number_input('FiO2 %', 21, 100, 40)
-        shock = hr / sbp
-        pf = pao2 / (fio2 / 100)
-        c1, c2 = st.columns(2)
+        lactate = st.number_input('Lactate', 0.1, 20.0, 1.5)
+        shock = hr / sbp if sbp else 0
+        pf = pao2 / (fio2 / 100) if fio2 else 0
+        c1, c2, c3 = st.columns(3)
         c1.metric('Shock index', f'{shock:.2f}')
         c2.metric('PF ratio', f'{pf:.0f}')
+        c3.metric('Lactate', f'{lactate:.1f}')
         save_trend(patient['patient_id'], dept, 'Shock index', shock, '')
-        summary = f'Shock index {shock:.2f}; PF ratio {pf:.0f}'
+        summary = f'Shock index {shock:.2f}; PF ratio {pf:.0f}; Lactate {lactate:.1f}'
 
     elif dept == 'Emergency Medicine':
-        bite = st.date_input('Date of bite', value=date.today())
-        category = st.selectbox('Bite category', ['Category I','Category II','Category III'])
-        wt = st.number_input('Weight kg', 1.0, 200.0, 60.0)
-        st.markdown('Rabies schedule')
-        for d in [0,3,7,14,28]:
-            due = bite + timedelta(days=d)
-            badge, label = schedule_badge(due)
-            st.markdown(f"<span class='{badge}'>{label}</span> Day {d}: {due}", unsafe_allow_html=True)
-        if category == 'Category III':
-            st.metric('ERIG dose', f'{wt*40:.0f} IU')
-        save_trend(patient['patient_id'], dept, 'Rabies weight', wt, 'kg')
-        summary = f'Rabies category {category}; weight {wt} kg'
+        tabs = st.tabs(['Triage', 'Rabies'])
+        with tabs[0]:
+            rr = st.number_input('Respiratory rate', 4, 60, 18)
+            sbp = st.number_input('SBP', 30, 250, 120)
+            gcs = st.number_input('GCS', 3, 15, 15)
+            ment = st.checkbox('Altered mental status')
+            qsofa = int(rr >= 22) + int(sbp <= 100) + int(ment)
+            st.metric('qSOFA', qsofa)
+            save_trend(patient['patient_id'], dept, 'qSOFA', qsofa, '')
+            summary = f'qSOFA {qsofa}'
+        with tabs[1]:
+            bite = st.date_input('Date of bite', value=date.today())
+            category = st.selectbox('Bite category', ['Category I','Category II','Category III'])
+            wt = st.number_input('Weight kg', 1.0, 200.0, 60.0)
+            for d in [0,3,7,14,28]:
+                due = bite + timedelta(days=d)
+                badge, label = schedule_badge(due)
+                st.markdown(f"<span class='{badge}'>{label}</span> Day {d}: {due}", unsafe_allow_html=True)
+            if category == 'Category III':
+                st.metric('ERIG dose', f'{wt*40:.0f} IU')
+            save_trend(patient['patient_id'], dept, 'Rabies weight', wt, 'kg')
+            summary += f'; Rabies category {category}; weight {wt} kg'
 
     elif dept == 'Hematology':
         hb = st.number_input('Hemoglobin', 1.0, 25.0, 12.0)
         mcv = st.number_input('MCV', 40.0, 130.0, 85.0)
         wbc = st.number_input('WBC', 0.1, 200.0, 7.0)
         neut = st.number_input('Neutrophil percent', 0.0, 100.0, 60.0)
+        platelets = st.number_input('Platelets', 1.0, 1000.0, 250.0)
         mentzer = mcv / hb if hb else 0
         anc = wbc * neut / 100
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         c1.metric('Mentzer index', f'{mentzer:.2f}')
         c2.metric('ANC', f'{anc:.2f}')
+        c3.metric('Platelets', f'{platelets:.0f}')
         save_trend(patient['patient_id'], dept, 'ANC', anc, 'x10^9/L')
-        summary = f'Mentzer {mentzer:.2f}; ANC {anc:.2f}'
+        summary = f'Mentzer {mentzer:.2f}; ANC {anc:.2f}; Platelets {platelets:.0f}'
 
     elif dept == 'HIV and ART Follow-up':
         art = st.date_input('ART start date', value=date.today())
-        st.markdown('Follow-up schedule')
         for name, days in [('4 weeks', 28), ('3 months', 90), ('6 months', 180), ('12 months', 365)]:
             due = art + timedelta(days=days)
             badge, label = schedule_badge(due)
