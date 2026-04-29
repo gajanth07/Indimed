@@ -4,7 +4,7 @@ from datetime import date, timedelta, datetime
 from pathlib import Path
 from urllib.parse import quote_plus
 
-st.set_page_config(page_title='IndiMed Pro 2026', layout='wide')
+st.set_page_config(page_title='PRI Prototype', layout='wide')
 
 def resolve_db_path():
     candidates = [Path('output/indimed_clinic.db'), Path('/tmp/indimed_clinic.db'), Path(tempfile.gettempdir()) / 'indimed_clinic.db']
@@ -38,7 +38,7 @@ section[data-testid="stSidebar"] { display:none !important; }
 .ribbon {background:linear-gradient(135deg,#fff7e7,#fff); border:1px solid #f3d59a; color:#8a5b00; border-radius:16px; padding:12px 14px; margin-bottom:12px; font-weight:700;}
 .section-title {font-size:1.05rem; font-weight:800; color:#13385d; margin:.8rem 0 .45rem 0;}
 .dept-grid {display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px;}
-.dept-card {background:linear-gradient(180deg,#fff,#f9fbff); border:1px solid var(--border); border-radius:18px; padding:14px; min-height:128px;}
+.dept-card {background:linear-gradient(180deg,#fff,#f9fbff); border:1px solid var(--border); border-radius:18px; padding:14px; min-height:112px; margin-bottom:6px;}
 .dept-card.peds {background:linear-gradient(180deg,#fff8e8,#fff); border-color:#f1d18f;}
 .dept-card.ai {background:linear-gradient(180deg,#eef8ff,#fff); border-color:#b9daf8;}
 .dept-title {font-weight:800; color:#153a60; margin-bottom:.45rem; font-size:.96rem;}
@@ -46,7 +46,7 @@ section[data-testid="stSidebar"] { display:none !important; }
 .surface {background:#fff; border:1px solid var(--border); border-radius:18px; padding:14px; margin:12px 0;}
 .explain {background:#f8fbff; border:1px solid #d6e6f8; border-radius:16px; padding:12px 14px; margin-top:10px;}
 .stButton>button,.stDownloadButton>button {width:100%!important; border:none!important; border-radius:12px!important; font-weight:700!important; color:white!important; min-height:42px;}
-.stButton>button {background:linear-gradient(135deg,var(--primary),var(--primary2))!important;} .stDownloadButton>button {background:linear-gradient(135deg,#0d7c74,var(--teal))!important;}
+.stButton>button {background:linear-gradient(135deg,var(--primary),var(--primary2))!important; text-align:left!important; justify-content:flex-start!important; padding:.8rem 1rem!important;} .stDownloadButton>button {background:linear-gradient(135deg,#0d7c74,var(--teal))!important;}
 [data-testid="stMetric"] {background:#fff; border:1px solid var(--border); border-radius:14px; padding:10px;}
 .note,.alert-red,.alert-green,.alert-gold {padding:12px 14px; border-radius:14px; font-weight:600; margin:.5rem 0;}
 .note {background:#eef7ff; border:1px solid #cfe4fa; color:#1d4f91;} .alert-red {background:#fff4f4; border:1px solid #ffd7d7; color:#9f1239;} .alert-green {background:#effdf7; border:1px solid #b7efd7; color:#0f766e;} .alert-gold {background:#fff8e8; border:1px solid #f4d08a; color:#8a5a00;}
@@ -156,17 +156,17 @@ def html_report(patient,dept,summary):
 def go_home(): st.session_state.page='home'
 def open_dept(name): st.session_state.selected_dept=name; st.session_state.page='dept'
 
-st.markdown("<div class='hero'><h1>IndiMed Pro 2026</h1><p>Refined for faster mobile access: priority departments first, compact cards, better visual hierarchy, and explanation panels after calculations.</p></div>", unsafe_allow_html=True)
+st.markdown("<div class='hero'><h1>PRI Prototype</h1><p>Refined for faster mobile access: priority departments first, compact cards, better visual hierarchy, and explanation panels after calculations.</p></div>", unsafe_allow_html=True)
 st.markdown("<div class='ribbon'>Quick access: the priority modules are Pediatrics, AI Clinical Search, and Medication Safety so you can reach them with fewer taps.</div>", unsafe_allow_html=True)
 
 if st.session_state.page=='home':
     st.markdown("<div class='section-title'>Fast access departments</div>", unsafe_allow_html=True)
-    cards=''.join([f"<div class='dept-card {cls}'><div class='dept-title'>{title}</div><div class='dept-desc'>{desc}</div></div>" for title,desc,cls in DEPTS])
-    st.markdown(f"<div class='dept-grid'>{cards}</div>", unsafe_allow_html=True)
-    for i in range(0,len(DEPTS),3):
-        cols=st.columns(3)
-        for j,(title,_,_) in enumerate(DEPTS[i:i+3]):
-            cols[j].button(f'Open {title}', key=f'open_{title}', on_click=open_dept, args=(title,))
+    for i in range(0, len(DEPTS), 2):
+        cols = st.columns(2)
+        for j, (title, desc, cls) in enumerate(DEPTS[i:i+2]):
+            with cols[j]:
+                st.markdown(f"<div class='dept-card {cls}'><div class='dept-title'>{title}</div><div class='dept-desc'>{desc}</div></div>", unsafe_allow_html=True)
+                st.button(title, key=f'open_{title}', on_click=open_dept, args=(title,))
     p1,p2,p3,p4=st.columns(4)
     st.session_state.patient_id=p1.text_input('Patient ID', value=st.session_state.patient_id)
     st.session_state.patient_name=p2.text_input('Patient Name', value=st.session_state.patient_name)
