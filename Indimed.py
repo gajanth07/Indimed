@@ -14,7 +14,7 @@ section[data-testid="stSidebar"]{display:none!important;}
 .card,.box{background:#fff;border:1px solid var(--border);border-radius:15px;padding:11px;margin:8px 0;} .card.peds{background:linear-gradient(180deg,#fff8e8,#fff);border-color:#f1d18f;} .card.ai{background:linear-gradient(180deg,#eef7ff,#fff);border-color:#c5def8;} .card.med{background:linear-gradient(180deg,#f4fffb,#fff);border-color:#bde7de;} .card.em{background:linear-gradient(180deg,#fff2f1,#fff);border-color:#ffd6d2;}
 .title{font-weight:800;color:#143a5f;margin-bottom:.2rem;} .desc{color:var(--muted);font-size:.84rem;} .tag{display:inline-block;padding:.16rem .48rem;border-radius:999px;background:#eef7ff;color:#1d4f91;font-size:.7rem;font-weight:700;margin:.06rem .12rem .06rem 0;border:1px solid #d2e6fb;}
 .warn,.note,.ok{padding:10px 12px;border-radius:12px;font-weight:600;margin:.45rem 0;} .warn{background:#fff4f4;border:1px solid #ffd7d7;color:#9f1239;} .note{background:#eef7ff;border:1px solid #cfe4fa;color:#1d4f91;} .ok{background:#eefbf6;border:1px solid #cbeedd;color:#136c43;}
-.stButton>button,.stFormSubmitButton>button,.stDownloadButton>button{width:100%!important;border:none!important;border-radius:11px!important;min-height:38px;font-weight:700!important;} .stButton>button,.stFormSubmitButton>button{background:linear-gradient(135deg,var(--primary),var(--primary2))!important;color:#fff!important;} .stDownloadButton>button{background:linear-gradient(135deg,#0c7b74,var(--teal))!important;color:#fff!important;}
+.stButton>button,.stFormSubmitButton>button,.stDownloadButton>button{width:100%!important;border:none!important;border-radius:11px!important;min-height:38px;font-weight:700!important;} .stButton>button,.stFormSubmitButton>button{background:linear-gradient(135deg,var(--primary),var(--primary2))!important;color:#fff!important;} .stDownloadButton>button{background:linear-gradient(135deg,#0c7b74,var(--teal))!important;color:#fff!important;} div[data-testid='column'] .stButton>button[kind='secondary'], div[data-testid='stVerticalBlock'] .stButton>button[kind='secondary']{background:transparent!important;color:transparent!important;box-shadow:none!important;border:none!important;min-height:0!important;height:0!important;padding:0!important;margin:0!important;}
 [data-testid="stMetric"]{background:#fff;border:1px solid var(--border);border-radius:12px;padding:8px;} .stTabs [data-baseweb="tab-list"]{gap:4px;} .stTabs [data-baseweb="tab"]{background:#f4f9ff;border-radius:10px;padding:7px 10px;}
 .mini{background:#fff;border:1px solid var(--border);border-radius:12px;padding:8px;text-align:center;} .mini b{display:block;color:#143a5f;font-size:.78rem;} .mini span{display:block;color:var(--muted);font-size:.72rem;}
 </style>
@@ -173,9 +173,8 @@ if st.session_state.page=='home':
             with cols[j]:
                 info=MODULES[name]
                 tags=''.join([f"<span class='tag'>{t}</span>" for t in info['tags']])
-                if st.button(name, key='open_'+name, on_click=open_dept, args=(name,)):
-                    pass
-                st.markdown(f"<div class='card {info['cls']}' style='margin-top:-42px; padding-top:48px;'><div class='title'>{name}</div><div class='desc'>{info['desc']}</div><div style='margin-top:.3rem'>{tags}</div></div>", unsafe_allow_html=True)
+                st.button(name, key='open_'+name, on_click=open_dept, args=(name,))
+                st.markdown(f"<div class='card {info['cls']}' style='margin-top:-6px;'><div class='title'>{name}</div><div class='desc'>{info['desc']}</div><div style='margin-top:.3rem'>{tags}</div></div>", unsafe_allow_html=True)
 else:
     dept=st.session_state.dept
     st.button('Back to Home', on_click=go_home)
