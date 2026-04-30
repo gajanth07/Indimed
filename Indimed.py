@@ -173,10 +173,9 @@ if st.session_state.page=='home':
             with cols[j]:
                 info=MODULES[name]
                 tags=''.join([f"<span class='tag'>{t}</span>" for t in info['tags']])
-                st.markdown(f"<div class='card {info['cls']}'><div class='title'>{name}</div><div class='desc'>{info['desc']}</div><div style='margin-top:.3rem'>{tags}</div></div>", unsafe_allow_html=True)
-                c1,c2=st.columns([3,2])
-                c1.button(name, key='open_'+name, on_click=open_dept, args=(name,))
-                c2.button('â˜…' if name in st.session_state.favorites else '+', key='fav_'+name, on_click=toggle_favorite, args=(name,))
+                if st.button(name, key='open_'+name, on_click=open_dept, args=(name,)):
+                    pass
+                st.markdown(f"<div class='card {info['cls']}' style='margin-top:-42px; padding-top:48px;'><div class='title'>{name}</div><div class='desc'>{info['desc']}</div><div style='margin-top:.3rem'>{tags}</div></div>", unsafe_allow_html=True)
 else:
     dept=st.session_state.dept
     st.button('Back to Home', on_click=go_home)
