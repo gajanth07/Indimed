@@ -1,9 +1,10 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import requests, io, math
 from datetime import date, timedelta
 from urllib.parse import quote_plus
 
-st.set_page_config(page_title='IndiMed Hardened 2026', layout='wide', initial_sidebar_state='collapsed')
+st.set_page_config(page_title='IndiMed X', layout='wide', initial_sidebar_state='collapsed')
 
 st.markdown('''
 <style>
@@ -45,10 +46,17 @@ if 'query' not in st.session_state: st.session_state.query=''
 def open_dept(name):
     st.session_state.dept=name
     st.session_state.page='dept'
+    try: st.query_params['dept']=name
+    except Exception: pass
     if name in st.session_state.recent: st.session_state.recent.remove(name)
     st.session_state.recent=[name]+st.session_state.recent[:4]
 
-def go_home(): st.session_state.page='home'
+def go_home():
+    st.session_state.page='home'
+    try:
+        if 'dept' in st.query_params: del st.query_params['dept']
+    except Exception:
+        pass
 
 def toggle_favorite(name):
     if name in st.session_state.favorites: st.session_state.favorites.remove(name)
@@ -147,6 +155,141 @@ def source_badges(indian='ICMR/NCDC', global_src='PubMed', method='Quick-support
 def safety_note(text, level='note'):
     st.markdown(f"<div class='{level}'>{text}</div>", unsafe_allow_html=True)
 
+
+def etat_triage_summary(emergency_flags, priority_flags):
+    if emergency_flags:
+        return 'Emergency', 'Immediate evaluation and stabilization needed.'
+    if len(priority_flags)>=1:
+        return 'Priority', 'Fast-track assessment is appropriate.'
+    return 'Queue', 'No ETAT emergency or priority sign selected.'
+
+def neonatal_jaundice_pathway(age_hours, bilirubin, preterm=False, risk=False):
+    prompt, level = bilirubin_prompt(age_hours, bilirubin, preterm, risk)
+    if age_hours < 24 and bilirubin > 0:
+        return 'Urgent review', 'Jaundice in the first 24 hours needs urgent assessment.'
+    if preterm or risk:
+        return 'High-risk pathway', prompt
+    return level, prompt
+
+def scenario_checklist(role):
+    scenarios={
+        'resident':['Can I reach emergency tools in 1 tap?','Are dose outputs readable under stress?','Is the next action obvious?'],
+        'nurse':['Are volumes, feeds, and vitals quick to enter?','Can I go back easily on mobile?','Are warnings easy to spot?'],
+        'consultant':['Are outputs framed as support not orders?','Are sources discoverable?','Do simplified tools declare limits?']
+    }
+    return scenarios.get(role,[])
+
+
+def pediatric_bolus_ml(weight_kg):
+    return round(weight_kg*20)
+
+def pediatric_ibw_traub_kichen(age_years):
+    if age_years < 1:
+        return None
+    return round((age_years*2)+8,1)
+
+def sodium_deficit_meq(weight_kg, current_na, target_na=135):
+    return max(0, round(0.6*weight_kg*(target_na-current_na),1))
+
+def free_water_deficit_l(weight_kg, sex, current_na, target_na=140):
+    tbw = 0.6*weight_kg if sex=='Male' else 0.5*weight_kg
+    return max(0, round(tbw*((current_na/target_na)-1),2))
+
+def corrected_sodium_hyperglycemia(na, glucose_mgdl):
+    return round(na + 1.6*((max(glucose_mgdl,100)-100)/100),1)
+
+def corrected_calcium_mgdl(total_ca, albumin):
+    return round(total_ca + 0.8*(4-albumin),2)
+
+def anion_gap(na, cl, hco3):
+    return round(na-(cl+hco3),1)
+
+def pediatric_map_floor(age_years):
+    return 40 if age_years < 1 else 55 + age_years*1.5
+
+def neonatal_map_target(ga_weeks):
+    return ga_weeks
+
+def infusion_rate_ml_hr(total_ml, hours):
+    return round(total_ml/max(hours,0.1),1)
+
+def glucose_infusion_advice(gir):
+    if gir < 4:
+        return 'Low GIR', 'Below common neonatal maintenance target; correlate with glucose trends and feeding tolerance.'
+    if gir <= 8:
+        return 'Usual GIR', 'Within common maintenance range for many neonates; interpret in full clinical context.'
+    if gir <= 12:
+        return 'High GIR', 'Higher glucose delivery; review indication, glucose values, and fluid balance.'
+    return 'Very high GIR', 'Markedly high glucose delivery; recheck calculations and assess for hyperglycemia risk.'
+
+def pediatric_clinical_interpretation(kind, value, **kwargs):
+    if kind=='bmi':
+        age=kwargs.get('age')
+        return f"BMI is {value:.2f}. In children, BMI should not be interpreted alone; age- and sex-specific percentile or z-score review is needed. Consider nutritional history, chronic disease, edema, and pubertal stage before labeling undernutrition or obesity. If the child appears wasted, ill, or growth-faltering, correlate with weight trend, appetite, and red flags requiring in-person assessment."
+    if kind=='map':
+        floor=kwargs.get('floor')
+        return f"Mean arterial pressure is {value:.1f} mmHg. Compare this with age-appropriate perfusion expectations; values near or below the estimated floor of {floor:.1f} mmHg may indicate compensated or overt circulatory compromise, especially if capillary refill is prolonged, pulses are weak, urine output is low, or mental status is altered. Consider sepsis, dehydration, hemorrhage, cardiac disease, and measurement error before acting."
+    if kind=='dehydration':
+        return f"Estimated dehydration support volume is {value} mL. This is a bedside planning cue, not a final order. Clinical severity should be judged alongside shock signs, ability to drink, ongoing stool or vomit losses, urine output, malnutrition, and serum electrolytes. Oral rehydration is preferred when feasible for mild to moderate dehydration; intravenous or nasogastric strategies are used when perfusion is impaired or enteral rehydration fails."
+    if kind=='bilirubin':
+        return f"This bilirubin prompt suggests: {value}. Interpretation depends strongly on age in hours, gestation, hemolysis risk, sepsis, weight loss, feeding adequacy, and neurotoxicity risk factors. Treatment decisions should follow hour-specific nomograms and local neonatal protocols rather than this prompt alone."
+    if kind=='gir':
+        return f"Calculated GIR is {value:.2f} mg/kg/min. Review this together with bedside glucose values, enteral feed tolerance, gestational age, sepsis risk, and fluid allowance. Low GIR may contribute to recurrent hypoglycemia, while high GIR can worsen hyperglycemia or fluid strategy complexity, especially in very preterm infants."
+    return 'Interpret the result within the full clinical picture, repeating assessment if the child is unstable or the number conflicts with bedside findings.'
+
+
+def dept_link_card(name, info):
+    slug = quote_plus(name)
+    tags = ''.join([f"<span class='tag'>{t}</span>" for t in info['tags']])
+    href = f"?dept={slug}"
+    return f"<a href='{href}' style='text-decoration:none;color:inherit;display:block'><div class='card {info['cls']}'><div class='title'>{name}</div><div class='desc'>{info['desc']}</div><div style='margin-top:.38rem'>{tags}</div></div></a>"
+
+def handle_query_nav():
+    try:
+        qp = st.query_params
+        dept = qp.get('dept')
+        if isinstance(dept, list):
+            dept = dept[0] if dept else None
+        if dept and dept in MODULES:
+            st.session_state.dept = dept
+            st.session_state.page = 'dept'
+            if dept in st.session_state.recent:
+                st.session_state.recent.remove(dept)
+            st.session_state.recent = [dept] + st.session_state.recent[:4]
+    except Exception:
+        pass
+
+def swipe_back_js():
+    return """
+<script>
+(function(){
+  if (window.__indimedSwipeBound) return;
+  window.__indimedSwipeBound = true;
+  let startX = 0, startY = 0, startT = 0;
+  const edge = 36, minDx = 90, maxDy = 70, maxMs = 900;
+  function touchStart(e){
+    const t = e.changedTouches && e.changedTouches[0];
+    if(!t) return;
+    startX = t.clientX; startY = t.clientY; startT = Date.now();
+  }
+  function touchEnd(e){
+    const t = e.changedTouches && e.changedTouches[0];
+    if(!t) return;
+    const dx = t.clientX - startX;
+    const dy = Math.abs(t.clientY - startY);
+    const dt = Date.now() - startT;
+    const url = new URL(window.location.href);
+    if(startX <= edge && dx >= minDx && dy <= maxDy && dt <= maxMs && url.searchParams.get('dept')){
+      url.searchParams.delete('dept');
+      window.location.href = url.toString();
+    }
+  }
+  window.addEventListener('touchstart', touchStart, {passive:true});
+  window.addEventListener('touchend', touchEnd, {passive:true});
+})();
+</script>
+"""
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def pubmed_search_cached(query, max_results=4):
     try:
@@ -161,21 +304,22 @@ def pubmed_search_cached(query, max_results=4):
 
 def html_report(title, summary): return io.BytesIO(f'<html><body><h1>{title}</h1><p>{summary}</p><p>{date.today()}</p></body></html>'.encode())
 
-st.markdown("<div class='hero'><h1>IndiMed</h1><p>India-first bedside support for pediatrics, neonatology, emergency care, medication safety, and quick clinical search.</p></div>", unsafe_allow_html=True)
+st.markdown("<div class='hero'><h1>IndiMed X Elite</h1><p>Cross-platform, India-first bedside support with safer clinical framing, faster mobile use, ETAT-aware triage support, neonatal guidance prompts, and cleaner workflow design.</p></div>", unsafe_allow_html=True)
+handle_query_nav()
+components.html(swipe_back_js(), height=0)
 
 if st.session_state.page=='home':
     st.text_input('Search modules, diseases, or tools', key='query', placeholder='Try: dengue, dose, vaccine, jaundice, sepsis')
-    st.caption('Search is instant across department names and descriptions.')
+    st.markdown("<div class='smallcap'>Search is instant across department names and descriptions.</div>", unsafe_allow_html=True)
     st.markdown("<div class='title'>Departments</div>", unsafe_allow_html=True)
     ordered=[x for x in ['Pediatrics and Growth','Neonatology','AI Clinical Search','Medication Safety and Dose','Emergency Medicine','Metabolic and General Medicine','Hematology','HIV and ART Follow-up'] if x in search_modules(st.session_state.query)]
     for name in ordered:
         info=MODULES[name]
-        tags=''.join([f"<span class='tag'>{t}</span>" for t in info['tags']])
-        st.markdown(f"<div class='card {info['cls']}'><div class='title'>{name}</div><div class='desc'>{info['desc']}</div><div style='margin-top:.38rem'>{tags}</div></div>", unsafe_allow_html=True)
-        st.button(name, key='open_'+name, on_click=open_dept, args=(name,))
+        st.markdown(dept_link_card(name, info), unsafe_allow_html=True)
 else:
     dept=st.session_state.dept
     st.button('Back to Home', on_click=go_home)
+    st.caption('Tip: swipe from the left edge to the right to go back on mobile.')
     source_badges(method='Clinician support layer', caution='Not for standalone diagnosis or order entry')
 
     if dept=='AI Clinical Search':
@@ -190,6 +334,7 @@ else:
             st.markdown("<div class='box'><b>NCDC</b><br><a href='https://ncdc.mohfw.gov.in/includes/Resource_Library/index.php?tab=Technical+Guidelines' target='_blank'>Open NCDC technical guidelines</a></div>", unsafe_allow_html=True)
             if age_group in ['Pediatric','Neonate']:
                 st.markdown("<div class='box'><b>IAP</b><br><a href='https://pubmed.ncbi.nlm.nih.gov/41954836/' target='_blank'>Open IAP immunization update</a></div>", unsafe_allow_html=True)
+            st.markdown("<div class='box'><b>IAP quick topics</b><br>" + ' â€¢ '.join(IAP_TOPICS) + "</div>", unsafe_allow_html=True)
             for r in pubmed_search_cached(f'{symptom} {age_group} India guideline review'):
                 st.markdown(f"<div class='box'><a href='{r['url']}' target='_blank'>{r['title']}</a><br><span class='desc'>{r['source']} | {r['pubdate']}</span></div>", unsafe_allow_html=True)
 
