@@ -651,33 +651,14 @@ def render_growth_visual(metric, percentile_text):
     st.caption(percentile_text)
 
 def registry_protocol(calc):
-    info = VERIFICATION_REGISTRY.get(calc, {})
-    return info.get("source", "Protocol/source review pending")
-
-
-    return PROTOCOL_REGISTRY.get(calc, {'protocol':'Indian clinical protocol context','year':'Clinical standard','thresholds':'Context dependent','exclusions':['Clinical correlation needed'],'red_flags':['Clinical instability'],'alternatives':['Measurement error','Mixed pathology']})
-
-def registry_block(calc, value=None, unit=''):
-    meta = registry_protocol(calc)
-    lines = [
-        f'Result: {value} {unit}'.strip(),
-        f"Protocol: {meta['protocol']} ({meta['year']})",
-        f"Threshold frame: {meta['thresholds']}",
-        'Exclusion / limitation points:'
-    ]
-    lines += [f'- {x}' for x in meta['exclusions']]
-    lines.append('Red flags:')
-    lines += [f'- {x}' for x in meta['red_flags']]
-    lines.append('Alternative diagnoses / explanations:')
-    lines += [f'- {x}' for x in meta['alternatives']]
-    return lines
-
-def render_registry_block(calc, value=None, unit=''):
-    st.markdown('**Registry protocol block**')
-    for line in registry_block(calc, value=value, unit=unit):
-        st.markdown(line if line.startswith('- ') else f'- {line}')
-
-    return PROTOCOL_REGISTRY.get(calc, {'protocol':'Indian clinical protocol context','year':'Clinical standard','thresholds':'Context dependent','exclusions':['Clinical correlation needed'],'red_flags':['Clinical instability'],'alternatives':['Measurement error','Mixed pathology']})
+    return PROTOCOL_REGISTRY.get(calc, {
+        'protocol':'Indian clinical protocol context',
+        'year':'Clinical standard',
+        'thresholds':'Context dependent',
+        'exclusions':['Clinical correlation needed'],
+        'red_flags':['Clinical instability'],
+        'alternatives':['Measurement error','Mixed pathology']
+    })
 
 def registry_block(calc, value=None, unit=''):
     meta = registry_protocol(calc)
@@ -1638,15 +1619,34 @@ else:
         tabs=st.tabs(['Growth','Weight estimate','Vitals','Fever','Fluids','Vaccine','Catch-up','Dehydration','ETAT triage','Emergency'])
         with tabs[0]:
             with st.form('p1'):
-                c1,c2,c3=st.columns(3)
+                c1,c2,c3,c4=st.columns(4)
                 age_m=c1.number_input('Age months',0,216,24)
                 wt=c2.number_input('Weight kg',1.0,120.0,12.0)
                 ht=c3.number_input('Height cm',30.0,220.0,85.0)
+                sex=c4.selectbox('Sex',['Male','Female'])
+                hc=st.number_input('Head circumference (cm)',0.0,80.0,45.0,0.1)
                 s=st.form_submit_button('Calculate growth')
             if s:
                 source_badges(indian='IAP', global_src='Standard bedside growth formula', method='BMI and quick expected-weight formula')
                 c1,c2=st.columns(2); bmi=calc_bmi(wt,ht)
                 c1.metric('BMI', f'{bmi:.2f}'); c2.metric('Expected weight', f'{expected_weight_kg(age_m):.1f} kg')
+                hint = iap_percentile_hint('bmi', age_m/12, sex, bmi)
+                st.markdown('**Growth chart interpretation**')
+                st.write(hint)
+                import re
+                percentile_num = None
+                m = re.search(r'(\d{1,2})th percentile', str(hint))
+                if m:
+                    percentile_num = int(m.group(1))
+                elif 'below 3rd' in str(hint).lower():
+                    percentile_num = 3
+                elif 'above 97th' in str(hint).lower():
+                    percentile_num = 97
+                st.markdown('**Growth percentile**')
+                st.write(simple_percentile_band(percentile_num) if percentile_num is not None else 'Percentile estimate unavailable from current embedded text.')
+                render_pictorial_percentile_projection('Male percentile lane', 'Male', percentile_num if sex=='Male' else None)
+                render_pictorial_percentile_projection('Female percentile lane', 'Female', percentile_num if sex=='Female' else None)
+                render_head_circumference_support(age_m, sex, hc)
                 safety_note(bmi_band(age_m/12,bmi),'note')
                 safety_note('Screening support only. Confirm with age- and sex-specific growth charts before interpretation.','note')
         with tabs[1]:
@@ -1821,7 +1821,8 @@ else:
         with tabs[0]:
             with st.form('m1'):
                 c1,c2=st.columns(2)
-                drug=c1.selectbox('Drug',['paracetamol','ibuprofen','ondansetron','amoxicillin'])
+                ped_drugs=sorted(set(['paracetamol','ibuprofen','ondansetron','amoxicillin','amoxicillin clavulanate','cefixime','ceftriaxone','cefotaxime','cephalexin','azithromycin','clindamycin','metronidazole','salbutamol','levosalbutamol','ipratropium','budesonide','hydrocortisone','prednisolone','dexamethasone','montelukast','cetirizine','levocetirizine','zinc','ors','vitamin d','iron','folic acid']) | set(DRUG_DATABASE.keys()) | set(LACTATION_EXTRA_DRUGS.keys()))
+                drug=c1.selectbox('Drug', ped_drugs)
                 wt=c2.number_input('Weight kg',1.0,200.0,20.0)
                 s=st.form_submit_button('Calculate dose')
             if s:
