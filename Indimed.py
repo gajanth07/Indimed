@@ -723,6 +723,75 @@ def simple_percentile_band(percentile):
     return '>97th percentile'
 
 
+def infer_percentile_from_bmi(age_years, sex, bmi):
+    if bmi is None or bmi <= 0:
+        return None
+    if age_years < 2:
+        if bmi < 14:
+            return 3
+        if bmi < 16:
+            return 25
+        if bmi < 18:
+            return 50
+        if bmi < 19:
+            return 75
+        return 97
+    if bmi < 13:
+        return 3
+    if bmi < 15:
+        return 10
+    if bmi < 17:
+        return 50
+    if bmi < 19:
+        return 75
+    if bmi < 23:
+        return 90
+    return 97
+
+
+def percentile_to_zscore(percentile):
+    if percentile is None:
+        return None
+    mapping = {3:-1.88, 10:-1.28, 25:-0.67, 50:0.0, 75:0.67, 90:1.28, 97:1.88}
+    nearest = min(mapping, key=lambda x: abs(x-percentile))
+    return mapping[nearest]
+
+
+def pediatric_dose_entry(name):
+    key=(name or '').strip().lower()
+    if key in DRUGS:
+        base=DRUGS[key].copy()
+        base.setdefault('source','DRUGS')
+        return base
+    db=DRUG_DATABASE.get(key, {}) if 'DRUG_DATABASE' in globals() else {}
+    dose_text = db.get('dose') if isinstance(db, dict) else None
+    mgkg = None
+    if isinstance(dose_text, str):
+        import re
+        m = re.search(r'(\d+(?:\.\d+)?)\s*mg\s*/\s*kg', dose_text.lower())
+        if m:
+            mgkg = float(m.group(1))
+    if mgkg is not None:
+        return {
+            'dose_mgkg': mgkg,
+            'renal': db.get('renal','Verify renal adjustment.'),
+            'preg': db.get('preg','Verify pregnancy safety with current reference.'),
+            'lact': db.get('lact', db.get('note','Verify lactation safety with current reference.')),
+            'route': db.get('route','Varies'),
+            'source':'DRUG_DATABASE'
+        }
+    if isinstance(db, dict) and db:
+        return {
+            'dose_text': db.get('dose','Dose requires protocol-specific verification.'),
+            'renal': db.get('renal','Verify renal adjustment.'),
+            'preg': db.get('preg','Verify pregnancy safety with current reference.'),
+            'lact': db.get('lact', db.get('note','Verify lactation safety with current reference.')),
+            'route': db.get('route','Varies'),
+            'source':'DRUG_DATABASE_TEXT'
+        }
+    return None
+
+
 def render_pictorial_percentile_projection(title, sex, percentile):
     st.markdown(f'**{title}**')
     marks = [3,10,25,50,75,90,97]
@@ -733,6 +802,29 @@ def render_pictorial_percentile_projection(title, sex, percentile):
         cols[i].markdown(f"<div style='text-align:center;padding:6px;border-radius:8px;background:{'#dbeafe' if active and sex.lower().startswith('m') else '#f3e8ff' if active else '#f3f4f6'}'>{label}</div>", unsafe_allow_html=True)
     if percentile is not None:
         st.caption(f'Projected {sex} percentile position: about {percentile}th percentile ({simple_percentile_band(percentile)}).')
+
+
+def render_percentile_graph(percentile, sex='Child'):
+    st.markdown('**Growth percentile graph**')
+    marks = [3,10,25,50,75,90,97]
+    accent = '#2563eb' if str(sex).lower().startswith('m') else '#9333ea'
+    pct = 50 if percentile is None else max(1, min(99, int(percentile)))
+    labels = ''.join([f"<div style='position:absolute;left:{m}%;top:18px;transform:translateX(-50%);font-size:11px;color:#475569'>{m}</div>" for m in marks])
+    ticks = ''.join([f"<div style='position:absolute;left:{m}%;top:-2px;width:2px;height:16px;background:#94a3b8;transform:translateX(-50%);border-radius:2px;'></div>" for m in marks])
+    bubble = f"<div style='position:absolute;left:{pct}%;top:-28px;transform:translateX(-50%);background:{accent};color:white;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap'>{pct}th %ile</div>"
+    pointer = f"<div style='position:absolute;left:{pct}%;top:8px;transform:translateX(-50%);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid {accent};'></div>"
+    fill = f"<div style='position:absolute;left:0;top:0;height:12px;width:{pct}%;background:linear-gradient(90deg,{accent},#22c55e);border-radius:999px;'></div>"
+    html = (
+        "<div style='background:#fff;border:1px solid #dbe4ee;border-radius:14px;padding:34px 14px 34px 14px;margin:8px 0 10px 0;'>"
+        "<div style='position:relative;height:44px;'>"
+        "<div style='position:absolute;left:0;right:0;top:0;height:12px;background:#e5e7eb;border-radius:999px;'></div>"
+        + fill + ticks + bubble + pointer + labels +
+        "</div>"
+        "<div style='display:flex;justify-content:space-between;font-size:12px;color:#64748b;margin-top:4px;'>"
+        "<span>Lower percentile zone</span><span>Median</span><span>Higher percentile zone</span>"
+        "</div></div>"
+    )
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def render_head_circumference_support(age_months, sex, hc_cm):
@@ -1633,17 +1725,14 @@ else:
                 hint = iap_percentile_hint('bmi', age_m/12, sex, bmi)
                 st.markdown('**Growth chart interpretation**')
                 st.write(hint)
-                import re
-                percentile_num = None
-                m = re.search(r'(\d{1,2})th percentile', str(hint))
-                if m:
-                    percentile_num = int(m.group(1))
-                elif 'below 3rd' in str(hint).lower():
-                    percentile_num = 3
-                elif 'above 97th' in str(hint).lower():
-                    percentile_num = 97
+                percentile_num = infer_percentile_from_bmi(age_m/12, sex, bmi)
+                zscore = percentile_to_zscore(percentile_num)
+                c3,c4=st.columns(2)
+                c3.metric('Approx percentile', f'{percentile_num}th' if percentile_num is not None else 'Unavailable')
+                c4.metric('Approx z score', f'{zscore:+.2f}' if zscore is not None else 'Unavailable')
                 st.markdown('**Growth percentile**')
-                st.write(simple_percentile_band(percentile_num) if percentile_num is not None else 'Percentile estimate unavailable from current embedded text.')
+                st.write(simple_percentile_band(percentile_num))
+                render_percentile_graph(percentile_num, sex)
                 render_pictorial_percentile_projection('Male percentile lane', 'Male', percentile_num if sex=='Male' else None)
                 render_pictorial_percentile_projection('Female percentile lane', 'Female', percentile_num if sex=='Female' else None)
                 render_head_circumference_support(age_m, sex, hc)
@@ -1827,7 +1916,17 @@ else:
                 s=st.form_submit_button('Calculate dose')
             if s:
                 source_badges(indian='Drug-safety quick support', global_src='Weight-based dose estimate', method='mg/kg calculation')
-                st.metric('Estimated single dose', f"{DRUGS[drug]['dose_mgkg']*wt:.2f} mg")
+                entry = pediatric_dose_entry(drug)
+                if entry and 'dose_mgkg' in entry:
+                    st.metric('Estimated single dose', f"{entry['dose_mgkg']*wt:.2f} mg")
+                    if entry.get('route'):
+                        st.caption(f"Route: {entry['route']} | Source: {entry.get('source','embedded')}")
+                elif entry and 'dose_text' in entry:
+                    st.markdown(f"<div class='box'><b>Dose guidance</b><br>{entry['dose_text']}</div>", unsafe_allow_html=True)
+                    if entry.get('route'):
+                        st.caption(f"Route: {entry['route']} | Source: {entry.get('source','embedded')}")
+                else:
+                    st.error('No embedded pediatric dose entry found for this drug. Add exact pediatric dosing data before using this calculator output clinically.')
                 safety_note('Check formulation, route, interval, renal/hepatic status, and age-band limits before prescribing or administering.','warn')
         with tabs[1]:
             with st.form('m2'):
