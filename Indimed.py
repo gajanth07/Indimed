@@ -1,3 +1,453 @@
+import json
+PROTOCOL_REGISTRY = {
+  "bmi": {
+    "protocol": "WHO Growth Standards + IAP pediatric nutrition/obesity guidance",
+    "year": "WHO standards; IAP topic guidance",
+    "thresholds": "Age- and sex-specific growth charts required",
+    "exclusions": [
+      "Do not use adult BMI categories in children",
+      "Edema can distort interpretation"
+    ],
+    "red_flags": [
+      "Rapid weight loss",
+      "Edema",
+      "Faltering growth",
+      "Systemic symptoms"
+    ],
+    "alternatives": [
+      "Constitutional thinness",
+      "Endocrine disease",
+      "Chronic disease",
+      "Measurement error"
+    ]
+  },
+  "dehydration": {
+    "protocol": "ICMR STW Acute Diarrhea",
+    "year": "2019",
+    "thresholds": "Plan A/B/C by dehydration class",
+    "exclusions": [
+      "Use caution in SAM, cardiac disease, renal disease"
+    ],
+    "red_flags": [
+      "Lethargy",
+      "Drinks poorly",
+      "Shock signs",
+      "Severe malnutrition"
+    ],
+    "alternatives": [
+      "DKA",
+      "Sepsis",
+      "Surgical abdomen",
+      "Adrenal crisis"
+    ]
+  },
+  "map": {
+    "protocol": "WHO ETAT + ICMR pediatric sepsis/shock workflow",
+    "year": "WHO ETAT 2016; ICMR STW 2019",
+    "thresholds": "Low perfusion concern if below age floor",
+    "exclusions": [
+      "Do not use MAP alone to exclude shock"
+    ],
+    "red_flags": [
+      "Cold extremities",
+      "Prolonged CRT",
+      "Altered sensorium",
+      "Weak pulses"
+    ],
+    "alternatives": [
+      "Wrong cuff size",
+      "Device error",
+      "Cardiac disease",
+      "Dehydration"
+    ]
+  },
+  "mentzer": {
+    "protocol": "IAP anemia guidance + Indian pediatric anemia context",
+    "year": "IAP 2022",
+    "thresholds": "Lower values favor thal trait pattern, higher values favor IDA pattern",
+    "exclusions": [
+      "Not diagnostic alone"
+    ],
+    "red_flags": [
+      "Severe pallor",
+      "Hemolysis signs",
+      "Transfusion need"
+    ],
+    "alternatives": [
+      "Mixed deficiency",
+      "Chronic inflammation",
+      "Lead exposure",
+      "Hemoglobinopathy"
+    ]
+  },
+  "anc": {
+    "protocol": "Indian hematology/pediatric unit protocol",
+    "year": "Unit policy",
+    "thresholds": "Severity banding by ANC level",
+    "exclusions": [
+      "Interpret with fever and trend"
+    ],
+    "red_flags": [
+      "Fever",
+      "Toxic look",
+      "Mucositis",
+      "Recurrent infection"
+    ],
+    "alternatives": [
+      "Viral suppression",
+      "Drug effect",
+      "Autoimmune neutropenia",
+      "Marrow failure"
+    ]
+  },
+  "bilirubin": {
+    "protocol": "Neonatal jaundice protocol / unit nomogram",
+    "year": "Unit policy",
+    "thresholds": "Hour-specific bilirubin thresholds",
+    "exclusions": [
+      "Do not decide phototherapy by a single untimed value"
+    ],
+    "red_flags": [
+      "<24h jaundice",
+      "Poor feeding",
+      "Lethargy",
+      "Prematurity"
+    ],
+    "alternatives": [
+      "Hemolysis",
+      "Sepsis",
+      "G6PD deficiency",
+      "Cholestasis"
+    ]
+  },
+  "gir": {
+    "protocol": "NICU hypoglycemia protocol",
+    "year": "Unit policy",
+    "thresholds": "Clinical target varies by infant and glucose trend",
+    "exclusions": [
+      "Do not use GIR without bedside glucose data"
+    ],
+    "red_flags": [
+      "Symptomatic hypoglycemia",
+      "Seizure",
+      "Recurrent low sugar"
+    ],
+    "alternatives": [
+      "Hyperinsulinism",
+      "Sepsis",
+      "Pump error",
+      "Wrong concentration"
+    ]
+  },
+  "bsa": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  },
+  "maintenance_fluid": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  },
+  "expected_weight": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  },
+  "weight_loss": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  },
+  "corrected_age": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  },
+  "qsofa": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  },
+  "sodium_deficit": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  },
+  "free_water_deficit": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  },
+  "corrected_sodium": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  },
+  "corrected_calcium": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  },
+  "anion_gap": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  },
+  "infusion_rate": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  },
+  "neonatal_feed": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  },
+  "neonatal_fluid": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  },
+  "bolus": {
+    "protocol": "Indian clinical protocol context",
+    "year": "Clinical standard",
+    "thresholds": "Calculator-specific context dependent range",
+    "exclusions": [
+      "Requires clinical correlation"
+    ],
+    "red_flags": [
+      "Unstable patient",
+      "Result inconsistent with exam"
+    ],
+    "alternatives": [
+      "Measurement error",
+      "Mixed pathology",
+      "Context-specific differential"
+    ]
+  }
+}
+THRESHOLD_REGISTRY = {
+  "pediatric_map_floor_formula": "SBP lower limit approx <70 if <1 year; else <70 + 2*age years",
+  "fever_definition": "Core temperature >= 38.0 C or axillary > 37.5 C",
+  "dehydration_plans": "No dehydration, Some dehydration, Severe dehydration",
+  "qsofa_range": "0-3",
+  "mentzer_hint": "<13 favors thal trait pattern; >13 favors IDA pattern support only"
+}
+
+def registry_protocol(calc):
+    return PROTOCOL_REGISTRY.get(calc, {'protocol':'Indian clinical protocol context','year':'Clinical standard','thresholds':'Context dependent','exclusions':['Clinical correlation needed'],'red_flags':['Clinical instability'],'alternatives':['Measurement error','Mixed pathology']})
+
+def registry_block(calc, value=None, unit=''):
+    meta = registry_protocol(calc)
+    lines = [
+        f'Result: {value} {unit}'.strip(),
+        f"Protocol: {meta['protocol']} ({meta['year']})",
+        f"Threshold frame: {meta['thresholds']}",
+        'Exclusion / limitation points:'
+    ]
+    lines += [f'- {x}' for x in meta['exclusions']]
+    lines.append('Red flags:')
+    lines += [f'- {x}' for x in meta['red_flags']]
+    lines.append('Alternative diagnoses / explanations:')
+    lines += [f'- {x}' for x in meta['alternatives']]
+    return lines
+
+def render_registry_block(calc, value=None, unit=''):
+    st.markdown('**Registry protocol block**')
+    for line in registry_block(calc, value=value, unit=unit):
+        st.markdown(line if line.startswith('- ') else f'- {line}')
+
+    return PROTOCOL_REGISTRY.get(calc, {'protocol':'Indian clinical protocol context','year':'Clinical standard','thresholds':'Context dependent','exclusions':['Clinical correlation needed'],'red_flags':['Clinical instability'],'alternatives':['Measurement error','Mixed pathology']})
+
+def registry_block(calc, value=None, unit=''):
+    meta = registry_protocol(calc)
+    lines = [
+        f"Result: {value} {unit}".strip(),
+        f"Protocol: {meta['protocol']} ({meta['year']})",
+        f"Threshold frame: {meta['thresholds']}",
+        'Exclusion / limitation points:'
+    ]
+    lines += [f"- {x}" for x in meta['exclusions']]
+    lines.append('Red flags:')
+    lines += [f"- {x}" for x in meta['red_flags']]
+    lines.append('Alternative diagnoses / explanations:')
+    lines += [f"- {x}" for x in meta['alternatives']]
+    return lines
+
+def render_registry_block(calc, value=None, unit=''):
+    st.markdown('**Registry protocol block**')
+    for line in registry_block(calc, value=value, unit=unit):
+        st.markdown(line if line.startswith('- ') else f'- {line}')
+
 import streamlit as st
 import streamlit.components.v1 as components
 import requests, io, math
@@ -354,6 +804,401 @@ def protocol_detail_lines(topic):
 
 def render_protocol_lines(topic):
     for line in protocol_detail_lines(topic):
+        st.markdown(f'- {line}')
+
+
+@st.cache_data(show_spinner=False)
+def detailed_calculator_guidance(calc, **kwargs):
+    if calc=='pediatric_bmi':
+        bmi=kwargs.get('bmi'); age=kwargs.get('age')
+        lines=[
+            f"Calculated BMI is {bmi:.2f} kg/mÂ².",
+            "This number alone is not enough to diagnose normal nutrition, overweight, obesity, or wasting in a child.",
+            "WHO and pediatric practice require age- and sex-specific growth interpretation; raw BMI is only the entry point.",
+            "If the child is under 5 years, BMI-for-age z-score or weight-for-height style interpretation is more meaningful than adult BMI categories.",
+            "If the child is older, BMI-for-age percentile or z-score should still be used rather than adult cutoffs.",
+            "A low BMI may suggest thinness, undernutrition, chronic disease, malabsorption, high catabolic state, or simply constitutional build depending on growth trend.",
+            "A high BMI may suggest overweight or obesity, but edema, endocrine disease, steroid exposure, or inaccurate height entry can distort interpretation.",
+            "IAP standard treatment guidance includes childhood obesity and severe acute malnutrition related resources, while WHO growth standards remain central for anthropometric interpretation.",
+            "Suggested next step is to correlate with growth velocity, diet history, pubertal stage, physical activity, family build, and any red flags such as weight loss or edema.",
+            "Alternative explanations should be considered if BMI conflicts with the child visual build, MUAC, past records, or clinical examination.",
+            "Treatment direction is not based on BMI alone; undernutrition needs nutritional and disease evaluation, while high BMI needs lifestyle, endocrine risk, and complication screening context.",
+            "Protocol frame: use WHO growth charts or z-scores plus applicable IAP pediatric guidance rather than adult BMI labels."
+        ]
+        return lines
+    if calc=='map':
+        value=kwargs.get('value'); floor=kwargs.get('floor')
+        return [
+            f"MAP is {value:.1f} mmHg.",
+            f"The simple bedside low-perfusion floor used here is approximately {floor:.1f} mmHg for age.",
+            "A value below or near this threshold raises concern for circulatory compromise, especially if pulses are weak or mental status is altered.",
+            "A normal MAP does not exclude compensated shock in children.",
+            "WHO ETAT emphasizes early recognition of shock and impaired circulation using bedside signs, not blood pressure alone.",
+            "Probable causes of low MAP include dehydration, sepsis, hemorrhage, myocarditis, anaphylaxis, and adrenal or metabolic illness.",
+            "Alternative causes include wrong cuff size, motion artifact, or isolated measurement error.",
+            "Suggested diagnosis frame is possible impaired perfusion if MAP is low and exam supports it.",
+            "Treatment direction usually requires repeat vitals, perfusion check, glucose review, cause-focused resuscitation, and escalation when unstable.",
+            "Protocol frame: integrate ETAT emergency signs with pediatric shock pathways and local unit policy."
+        ]
+    if calc=='bilirubin':
+        prompt=kwargs.get('prompt')
+        return [
+            f"Current bilirubin interpretation prompt: {prompt}",
+            "This output is only a risk flag and not the final treatment decision.",
+            "Neonatal bilirubin must be interpreted by age in hours, gestational age, neurotoxicity risk factors, and clinical status.",
+            "IAP neonatal guidance resources and standard neonatal practice support structured jaundice evaluation rather than isolated number-based decisions.",
+            "NICE and related jaundice protocols also emphasize hour-specific thresholds and early escalation for jaundice in the first 24 hours.",
+            "Probable causes include physiologic jaundice, breastfeeding failure jaundice, hemolysis, prematurity, bruising, or infection.",
+            "Alternative diagnoses include conjugated jaundice, G6PD deficiency, hypothyroidism, cholestasis, or sepsis.",
+            "Suggested next steps are to check feeding, weight loss, stool and urine transition, maternal blood group history, and illness signs.",
+            "Treatment direction may include closer review, repeat bilirubin, phototherapy, or exchange consideration depending on formal threshold charts.",
+            "Protocol frame: use local neonatal jaundice chart or accepted nomogram with unit-specific escalation policy."
+        ]
+    if calc=='gir':
+        gir=kwargs.get('gir')
+        return [
+            f"Calculated glucose infusion rate is {gir:.2f} mg/kg/min.",
+            "This should be interpreted with bedside glucose trends, feeding tolerance, gestational age, and fluid allowance.",
+            "A low GIR may contribute to persistent or recurrent hypoglycemia, especially in preterm or growth-restricted infants.",
+            "A high GIR may worsen hyperglycemia and complicate fluid planning.",
+            "Probable causes of low glucose despite GIR include sepsis, hyperinsulinism, inadequate stores, delayed feeds, or incorrect infusion delivery.",
+            "Alternative causes of apparent abnormal GIR include pump mismatch, wrong weight entry, or concentration error.",
+            "IAP neonatal hypoglycemia guidance and unit protocols should drive threshold-based intervention, not this number alone.",
+            "Suggested management direction is to verify glucose values, infusion accuracy, enteral strategy, and escalation thresholds.",
+            "Treatment alternatives include feed optimization, dextrose concentration adjustment, or evaluation for persistent hypoglycemia disorders depending on the pattern.",
+            "Protocol frame: use NICU hypoglycemia protocol with repeated glucose monitoring."
+        ]
+    return [
+        "Interpret this calculator output together with history, examination, trend, and risk factors.",
+        "One number is rarely diagnostic on its own in pediatrics or neonatology.",
+        "Probable causes should be built from syndrome pattern and severity.",
+        "Alternative diagnoses must be considered if bedside findings do not fit the number.",
+        "Use IAP, ICMR, WHO, or local departmental protocols where applicable.",
+        "Reassess after intervention and do not treat the calculator output in isolation.",
+        "Escalate if the child is unstable, deteriorating, or has emergency signs.",
+        "Use confirmatory investigations where clinically indicated.",
+        "Check input quality if the result appears inconsistent.",
+        "Document the interpretation and reassessment plan."
+    ]
+
+def render_guidance_block(calc, **kwargs):
+    st.markdown('**Detailed interpretation and protocol frame**')
+    for line in detailed_calculator_guidance(calc, **kwargs):
+        st.markdown(f'- {line}')
+
+
+@st.cache_data(show_spinner=False)
+def universal_protocol_block(calc, value=None, unit='', min_ref=None, max_ref=None, protocol='Indian protocol context', year='Advisory', **kwargs):
+    lines=[]
+    lines.append(f"Result: {value} {unit}".strip())
+    if min_ref is not None or max_ref is not None:
+        lines.append(f"Reference frame used in app: minimum {min_ref if min_ref is not None else 'not fixed'}, maximum {max_ref if max_ref is not None else 'not fixed'}." )
+    lines.append(f"Protocol label: {protocol} ({year}).")
+    if calc=='bmi':
+        bmi=float(value)
+        lines += [
+            'Raw BMI is a screening number and must not be interpreted using adult labels in children.',
+            'Suggested diagnosis depends on age- and sex-specific BMI-for-age or growth chart interpretation.',
+            'WHO growth standards and growth references remain the correct frame for anthropometric interpretation in children.',
+            'IAP pediatric standards are relevant for obesity, severe acute malnutrition, and clinical nutrition decision pathways.',
+            'Low values may represent wasting, chronic disease, malabsorption, constitutional thinness, or measurement error.',
+            'High values may represent overweight, obesity, edema, endocrine disease, steroid exposure, or wrong height entry.',
+            'Suggested next steps are growth chart review, diet history, activity review, family build, and search for red flags.',
+            'Alternative diagnoses include chronic systemic disease, nephrotic state, endocrine disorders, or fluid retention.',
+            'Treatment direction should be based on growth trend and clinical syndrome rather than BMI alone.',
+            'Reassuring versus concerning status must be finalized only after plotting on appropriate growth standards.'
+        ]
+    elif calc=='map':
+        lines += [
+            'MAP is only one bedside perfusion marker and cannot exclude compensated shock.',
+            'Values below the age-linked floor increase concern for circulatory compromise when exam findings also support hypoperfusion.',
+            'WHO ETAT and ICMR pediatric sepsis guidance prioritize clinical recognition of shock over isolated pressure numbers.',
+            'Probable causes include dehydration, sepsis, hemorrhage, myocarditis, anaphylaxis, and adrenal or metabolic causes.',
+            'Alternative explanations include wrong cuff size, agitation, poor technique, or isolated device error.',
+            'Suggested diagnosis is possible impaired perfusion if low MAP coexists with prolonged CRT, weak pulse, or altered sensorium.',
+            'Treatment direction includes urgent reassessment, repeat vitals, glucose check, perfusion review, and cause-based management.',
+            'Alternative management may be needed in SAM, cardiac disease, renal disease, or fluid-sensitive states.',
+            'Protocol-based escalation is advised if bedside signs and blood pressure trend are worsening.',
+            'A normal MAP should never delay escalation when the clinical picture is strongly concerning.'
+        ]
+    elif calc=='mentzer':
+        lines += [
+            'Mentzer index is a pattern-support tool, not a definitive diagnosis.',
+            'Lower values may suggest thalassemia trait, while higher values may support iron deficiency pattern recognition.',
+            'The result must be combined with Hb, RDW, RBC count, smear, ferritin if available, and family history.',
+            'IAP and Indian pediatric anemia guidance favor syndrome-based interpretation rather than relying on one index alone.',
+            'Probable diagnosis with higher index is iron deficiency anemia if the clinical context supports it.',
+            'Alternative diagnoses include mixed deficiency, chronic inflammation, lead exposure, sideroblastic process, or hemoglobinopathy.',
+            'Treatment direction for likely iron deficiency includes confirming severity, dietary review, and appropriate iron plan.',
+            'Alternative treatment path is hematology workup when the pattern is atypical or nonresponsive.',
+            'Do not use this result to rule out thalassemia trait without CBC pattern and family context.',
+            'Protocol frame: interpret under IAP anemia guidance and local hematology policy.'
+        ]
+    elif calc=='anc':
+        lines += [
+            'ANC helps estimate neutropenia severity and infection risk context.',
+            'Low values may indicate viral suppression, sepsis, marrow suppression, drug effect, autoimmune neutropenia, or nutritional deficiency.',
+            'Very low ANC raises concern for invasive infection risk, especially with fever.',
+            'Alternative explanations include lab timing, differential count error, or transient viral marrow suppression.',
+            'Suggested diagnosis frame should distinguish febrile neutropenia from isolated asymptomatic neutropenia.',
+            'Treatment direction depends on fever, hemodynamic stability, mucosal findings, and underlying disease context.',
+            'Indian protocol framing should follow the relevant pediatric oncology or hematology unit pathway where applicable.',
+            'Stable isolated neutropenia may permit observation and repeat counts, depending on severity and child condition.',
+            'Febrile neutropenia or toxic appearance requires urgent escalation and antimicrobial protocol use.',
+            'Interpretation should always include trend rather than one isolated ANC alone.'
+        ]
+    elif calc=='dehydration':
+        lines += [
+            'This output estimates fluid deficit or rehydration need but does not by itself diagnose the cause of illness.',
+            'ICMR pediatric acute diarrhea workflow uses dehydration classification with Plan A, Plan B, and Plan C structure.',
+            'Probable causes include acute gastroenteritis, fever with poor intake, vomiting illness, and sepsis-related poor perfusion.',
+            'Alternative diagnoses include diabetic ketoacidosis, surgical abdomen, adrenal crisis, and severe sepsis.',
+            'Mild or some dehydration generally supports enteral or ORS-led rehydration when the child can drink.',
+            'Severe dehydration or poor perfusion requires urgent escalation and protocol-based fluid management.',
+            'Reference range is clinical rather than numeric; concern rises when lethargy, poor drinking, sunken eyes, or slow skin pinch coexist.',
+            'Treatment direction must consider sodium disorders, malnutrition, ongoing losses, and vomiting burden.',
+            'Alternative treatment path is cautious fluid strategy if SAM, cardiac disease, or renal compromise is suspected.',
+            'Protocol frame: ICMR pediatrics STW 2019 acute diarrhea and local pediatric emergency policy.'
+        ]
+    elif calc=='bilirubin':
+        lines += [
+            'This bilirubin result must be interpreted against age in hours, gestation, and neurotoxicity risk factors.',
+            'Indian neonatal practice and international jaundice protocols use threshold charts, not isolated bilirubin values alone.',
+            'Probable causes include physiologic jaundice, breastfeeding failure jaundice, prematurity, hemolysis, bruising, and infection.',
+            'Alternative diagnoses include conjugated jaundice, G6PD deficiency, hypothyroidism, cholestasis, and sepsis.',
+            'Concerning status rises if jaundice appears in the first 24 hours or the baby is unwell.',
+            'Treatment direction may include repeat testing, feeding optimization, phototherapy, or exchange planning depending on formal thresholds.',
+            'Alternative treatment path depends on gestation and local neonatal chart use.',
+            'A reassuring number today may still require repeat review if the infant is early in the bilirubin trajectory.',
+            'Protocol frame should cite local neonatal jaundice chart, unit policy, and neonatal society guidance where used.',
+            'Use this block only as decision support and not as a replacement for the official threshold nomogram.'
+        ]
+    elif calc=='gir':
+        lines += [
+            'GIR should be interpreted with bedside glucose values and clinical response.',
+            'Low GIR can contribute to hypoglycemia, especially in preterm, septic, or growth-restricted infants.',
+            'High GIR can contribute to hyperglycemia or excessive fluid and glucose exposure.',
+            'Probable causes of persistent low glucose despite GIR include hyperinsulinism, sepsis, inadequate stores, delayed feeding, or infusion error.',
+            'Alternative explanations include wrong weight, wrong dextrose concentration, or pump mismatch.',
+            'Suggested diagnosis depends on whether the baby is symptomatic, recurrently hypoglycemic, or persistently unstable.',
+            'Treatment direction includes checking infusion accuracy, feed adequacy, repeat glucose, and protocol thresholds.',
+            'Alternative treatment may involve concentration change, feed change, or persistent hypoglycemia workup.',
+            'Indian neonatal protocol framing should follow NICU hypoglycemia policy and neonatal practice guidance.',
+            'Trend over time is more meaningful than one GIR value alone.'
+        ]
+    elif calc=='bsa':
+        lines += [
+            'BSA is usually a dosing or physiological normalization tool rather than a diagnosis.',
+            'The number can be useful for chemotherapy, burn, renal, or selected medication calculations depending on protocol.',
+            'Probable error sources include inaccurate height or weight entry and unit mismatch.',
+            'Alternative formulas exist, but Mosteller is commonly used for bedside simplicity.',
+            'Suggested use is to verify whether the target drug or protocol actually requires BSA rather than weight-based dosing.',
+            'Very unusual BSA for age should prompt review of anthropometry and nutritional status.',
+            'Treatment direction should follow the target department protocol rather than the BSA value itself.',
+            'Reference range varies strongly with age and body size, so there is no single normal number for all children.',
+            'Indian protocol frame depends on the specialty using the BSA calculation.',
+            'Document the source formula when BSA is used for medication decisions.'
+        ]
+    elif calc=='maintenance_fluid':
+        lines += [
+            'Maintenance fluid is a baseline estimate and not the total fluid prescription in every illness.',
+            'The usual bedside frame is the Holliday-Segar style approach unless contraindicated by context.',
+            'Probable reasons to modify the estimate include renal dysfunction, SIADH, cardiac disease, shock, sepsis, prematurity, or ongoing abnormal losses.',
+            'Alternative fluid strategies may be needed in malnutrition or electrolyte disorders.',
+            'Suggested diagnosis frame is hydration planning support rather than direct disease diagnosis.',
+            'Treatment direction should integrate sodium status, glucose, urine output, perfusion, and ongoing loss replacement.',
+            'Indian pediatric protocol context favors syndrome-based fluid adjustment rather than blind maintenance-only use.',
+            'A child with pneumonia, CNS disease, edema, or renal disease may require restriction instead of standard maintenance.',
+            'A child with diarrhea or high fever may need maintenance plus deficit plus ongoing loss replacement depending on severity.',
+            'Reassess weight, urine output, perfusion, and electrolytes after starting fluids.'
+        ]
+    elif calc=='expected_weight':
+        lines += [
+            'Expected weight is a quick bedside estimate and not a substitute for plotting actual growth.',
+            'The result is useful when the child weight is unknown or to sense whether measured weight looks discordant.',
+            'A much lower actual weight can suggest undernutrition, chronic disease, malabsorption, constitutional small build, or wrong age input.',
+            'A much higher actual weight can suggest overweight, obesity, endocrine issue, edema, or wrong age input.',
+            'WHO growth charts remain the proper standard for confirming nutritional classification.',
+            'IAP pediatric nutrition and obesity guidance should frame the next evaluation step when discrepancy is substantial.',
+            'Treatment direction depends on the underlying cause of discordance, not the estimate alone.',
+            'Alternative explanation always includes formula limitation because expected-weight equations are crude bedside tools.',
+            'Reference range is broad and child-specific; trend across visits is more meaningful than one estimate.',
+            'Use this result to trigger assessment, not to label the child definitively.'
+        ]
+    elif calc=='weight_loss':
+        lines += [
+            'Percent weight loss helps quantify nutritional or fluid change over time.',
+            'In children, significant loss may suggest dehydration, poor intake, chronic disease, malabsorption, diabetes, TB, malignancy, or psychosocial feeding issue.',
+            'In neonates, physiologic early weight loss has a different meaning than later pathological loss.',
+            'Alternative explanations include scale variability, clothing difference, edema resolution, or wrong baseline entry.',
+            'Suggested diagnosis frame depends on time course, feeding history, urine output, stool pattern, and illness signs.',
+            'Treatment direction may include hydration review, feeding optimization, malnutrition workup, endocrine evaluation, or infection screening.',
+            'Indian protocol context depends on age group and syndrome; SAM and neonatal feeding pathways are especially relevant.',
+            'A rapid large loss is more concerning than a small gradual change without symptoms.',
+            'Minimum and maximum acceptable change are age- and context-dependent rather than universal.',
+            'Always correlate with MUAC, edema, appetite, and illness severity.'
+        ]
+    elif calc=='corrected_age':
+        lines += [
+            'Corrected age is important for developmental expectation, feeding assessment, and growth interpretation in preterm infants.',
+            'Using chronological age alone can falsely label a preterm infant as delayed or undergrown.',
+            'Probable error sources include wrong gestational age entry or wrong postnatal age calculation.',
+            'Suggested diagnosis frame is developmental and growth adjustment rather than disease diagnosis.',
+            'Treatment direction includes using corrected age for milestone assessment and selected nutrition decisions during infancy.',
+            'Alternative interpretation may be needed if severe neonatal illness, brain injury, or syndromic disease affects development.',
+            'Indian neonatal follow-up practice commonly uses corrected age in preterm assessment.',
+            'Reference value is conceptual rather than a min-max normal range.',
+            'If corrected age still shows significant developmental concern, structured developmental evaluation is needed.',
+            'Document both chronological and corrected age during review.'
+        ]
+    elif calc=='qsofa':
+        lines += [
+            'qSOFA is a quick severity prompt, not a complete pediatric sepsis diagnostic tool.',
+            'In children, age-adjusted pediatric assessment and full clinical examination remain more important than the score alone.',
+            'Probable concern rises when high score coexists with infection suspicion, poor perfusion, altered sensorium, or respiratory distress.',
+            'Alternative explanations include noninfectious altered mentation, seizure, intoxication, trauma, or dehydration.',
+            'ICMR pediatric sepsis workflow should guide syndrome-level management more than a single score.',
+            'Treatment direction includes urgent reassessment, sepsis screening, perfusion review, glucose check, and escalation where needed.',
+            'A low score does not safely exclude sepsis in children.',
+            'Reference frame is qualitative: higher score means higher concern, not a confirmed diagnosis.',
+            'Use with ETAT emergency signs and local sepsis pathway.',
+            'Trend and bedside deterioration matter more than a one-time score.'
+        ]
+    elif calc=='sodium_deficit':
+        lines += [
+            'Sodium deficit estimation supports structured correction planning in hyponatremia, but therapy must be individualized.',
+            'Probable causes include gastroenteritis, SIADH, renal disease, adrenal insufficiency, diuretic use, or excess free water.',
+            'Alternative explanations include lab artifact, hyperglycemia-related pseudolow sodium, or sampling error.',
+            'Suggested diagnosis frame depends on symptoms, chronicity, volume status, and measured osmolality where available.',
+            'Treatment direction must prioritize neurologic symptoms and safe rate of correction.',
+            'Alternative treatment paths differ for hypovolemic, euvolemic, and hypervolemic hyponatremia.',
+            'Indian protocol framing should follow pediatric electrolyte correction policy and intensive care standards.',
+            'There is no single universal correction plan from this number alone.',
+            'Overcorrection can be dangerous, so repeat sodium monitoring is essential.',
+            'Always correct hyperglycemia effect and review seizure status before using the deficit mechanically.'
+        ]
+    elif calc=='free_water_deficit':
+        lines += [
+            'Free water deficit is an estimate used in hypernatremia planning and not a complete fluid prescription.',
+            'Probable causes include diarrhea, inadequate intake, diabetes insipidus, fever, osmotic losses, or feeding error.',
+            'Alternative explanations include wrong weight input or mixed electrolyte disorder.',
+            'Suggested diagnosis frame depends on hydration state, neurologic status, urine output, and chronicity.',
+            'Treatment direction requires slow controlled correction and close electrolyte monitoring.',
+            'Alternative treatment paths may be needed in shock, renal disease, diabetes insipidus, or malnutrition.',
+            'Indian pediatric fluid-electrolyte protocol should guide the actual correction rate.',
+            'Rapid correction risks cerebral edema and neurologic deterioration.',
+            'Use alongside ongoing losses and maintenance planning rather than as a stand-alone total.',
+            'Repeat sodium checks are mandatory in clinically important hypernatremia.'
+        ]
+    elif calc=='corrected_sodium':
+        lines += [
+            'Corrected sodium helps estimate the effect of hyperglycemia on measured sodium.',
+            'A low measured sodium may partly reflect osmotic water shift rather than true sodium depletion.',
+            'Probable contexts include DKA, severe hyperglycemia, stress hyperglycemia, or diabetes-related dehydration.',
+            'Alternative explanations include laboratory error or mixed electrolyte disorder.',
+            'Suggested diagnosis frame is pseudohyponatremia adjustment support rather than a final sodium diagnosis.',
+            'Treatment direction should follow DKA or hyperglycemia protocol rather than sodium correction alone.',
+            'Indian protocol framing should align with pediatric hyperglycemia and DKA management standards.',
+            'A corrected value that remains low suggests true concurrent hyponatremia may exist.',
+            'Use serial glucose and sodium values to track response.',
+            'Do not use corrected sodium in isolation when neurologic symptoms are present.'
+        ]
+    elif calc=='corrected_calcium':
+        lines += [
+            'Corrected calcium estimates the albumin-adjusted calcium status when albumin is abnormal.',
+            'Probable causes of low corrected calcium include prematurity, sepsis, vitamin D deficiency, hypoparathyroidism, renal disease, or citrate exposure.',
+            'Alternative explanations include acid-base effects and assay variation; ionized calcium is more definitive when available.',
+            'Suggested diagnosis frame depends on symptoms such as jitteriness, seizures, apnea, or tetany.',
+            'Treatment direction depends on severity, symptoms, ECG risk, and neonatal versus pediatric context.',
+            'Alternative treatment path includes magnesium review and investigation of the underlying cause.',
+            'Indian neonatal and pediatric protocols usually prioritize symptomatic status and repeat confirmation.',
+            'A corrected value does not replace ionized calcium in critical care settings.',
+            'Reference range depends on lab and age group, especially in neonates.',
+            'Always correlate with phosphate, magnesium, albumin, and clinical signs.'
+        ]
+    elif calc=='anion_gap':
+        lines += [
+            'Anion gap helps frame acid-base differential diagnosis rather than giving a diagnosis by itself.',
+            'A high gap may suggest ketoacidosis, lactic acidosis, renal failure, toxins, or sepsis-related metabolic stress.',
+            'A normal gap acidosis may suggest diarrhea or renal tubular acidosis.',
+            'Alternative explanations include low albumin effect or lab inconsistency.',
+            'Suggested diagnosis frame must include bicarbonate, pH, perfusion, glucose, ketones, and renal context.',
+            'Treatment direction is cause-specific and not based on the gap alone.',
+            'Indian emergency and ICU practice would interpret this with the larger acid-base picture.',
+            'Reference ranges vary somewhat by lab, but markedly elevated values increase concern for serious metabolic disease.',
+            'Trend over time can show response to therapy.',
+            'Always verify whether albumin correction is relevant in prolonged illness or critical care.'
+        ]
+    elif calc=='infusion_rate':
+        lines += [
+            'Infusion rate converts dose or volume planning into a practical pump setting and should always be double-checked.',
+            'Probable risk from a wrong rate includes underdosing, fluid overload, electrolyte error, or dangerous medication exposure.',
+            'Alternative error sources include wrong concentration, wrong weight, wrong time unit, or decimal placement mistake.',
+            'Suggested diagnosis frame is medication-safety support rather than disease diagnosis.',
+            'Treatment direction is to cross-check the calculation with the prescription, concentration, and pump settings.',
+            'Indian medication-safety practice should include an independent double-check for high-risk drugs and neonatal infusions.',
+            'Reference range depends entirely on the prescribed drug or fluid and not on the rate number itself.',
+            'Any unusually high or low rate should trigger re-verification before administration.',
+            'Alternative pathways include using standardized concentration charts where available.',
+            'Document concentration, rate, weight, and reviewer before starting critical infusions.'
+        ]
+    elif calc=='neonatal_feed':
+        lines += [
+            'Daily feed volume in mL/kg/day supports neonatal nutrition planning but depends on maturity and tolerance.',
+            'Probable need varies with gestational age, day of life, illness severity, respiratory support, and fluid restriction goals.',
+            'Alternative explanations for poor tolerance include sepsis, NEC risk, reflux, delayed gut adaptation, or formula issues.',
+            'Suggested diagnosis frame is nutrition and tolerance review rather than disease diagnosis.',
+            'Treatment direction includes advancing feeds based on tolerance, abdominal exam, aspirates if monitored, stool pattern, and unit policy.',
+            'Alternative treatment path is slower advancement or partial parenteral support in unstable babies.',
+            'Indian NICU or SNCU feeding protocol should determine day-wise targets rather than this number alone.',
+            'Minimum and maximum acceptable volume vary by gestation and day of life.',
+            'Weight trend and urine output are critical companion indicators.',
+            'Reassess if abdominal distension, bilious aspirate, apnea, or lethargy develops.'
+        ]
+    elif calc=='neonatal_fluid':
+        lines += [
+            'Neonatal fluid requirement in mL/kg/day is a structured starting estimate and not a fixed prescription.',
+            'Probable modifiers include gestation, radiant warmer use, phototherapy, respiratory support, PDA, renal function, and sodium trend.',
+            'Alternative risk is both underhydration and overhydration, especially in preterm babies.',
+            'Suggested diagnosis frame is fluid planning support rather than direct disease diagnosis.',
+            'Treatment direction should include daily weight, urine output, sodium, perfusion, and respiratory review.',
+            'Alternative treatment path may require restriction or escalation depending on illness and insensible losses.',
+            'Indian NICU practice relies on day-of-life and gestation-based fluid pathways.',
+            'There is no universal single normal range across all neonates.',
+            'Phototherapy and warmer care often increase fluid need, while cardiac or renal issues may reduce tolerance.',
+            'Reassess fluid prescription every day and sooner if the infant status changes.'
+        ]
+    elif calc=='bolus':
+        lines += [
+            'Fluid bolus estimate supports emergency planning and should be used with a shock phenotype assessment.',
+            'Probable indications include poor perfusion, dehydration shock, or sepsis depending on the clinical picture.',
+            'Alternative diagnoses include cardiogenic shock, severe anemia, obstructive shock, or anaphylaxis where standard fluid strategy may differ.',
+            'WHO ETAT and pediatric emergency guidance prioritize bedside recognition of shock signs before fluid escalation.',
+            'Treatment direction includes reassessment after each bolus rather than repeated blind boluses.',
+            'Alternative treatment path is cautious fluid strategy in SAM, myocarditis, renal failure, or dengue leakage states.',
+            'Indian pediatric emergency protocol should guide dose, fluid choice, and escalation to vasoactive support.',
+            'A calculated bolus does not confirm that fluid is the correct treatment.',
+            'Monitor pulse volume, CRT, hepatomegaly, work of breathing, and urine output after intervention.',
+            'Escalate quickly if perfusion remains poor or respiratory distress worsens.'
+        ]
+    else:
+        lines += [
+            'This result is a clinical support number and should be interpreted with history, examination, and trend.',
+            'The app provides a protocol frame, not a stand-alone diagnosis.',
+            'Probable causes depend on the syndrome under consideration and the patient context.',
+            'Alternative diagnoses should be reviewed whenever bedside findings do not fit the number.',
+            'Minimum and maximum reference values in this block are guidance anchors, not universal absolutes.',
+            'Indian standard treatment workflows are advisory and allow physician judgment for individual variation.',
+            'Treatment direction should focus on severity, red flags, and the likely syndrome rather than isolated numerics.',
+            'Alternative management pathways may be required for malnutrition, prematurity, renal disease, or cardiac disease.',
+            'Repeat assessment is recommended if the child or neonate is unstable or the value appears inconsistent.',
+            'Escalate when protocol danger signs are present regardless of a borderline numeric result.'
+        ]
+    return lines
+
+def render_universal_protocol(calc, value=None, unit='', min_ref=None, max_ref=None, protocol='Indian protocol context', year='Advisory', **kwargs):
+    st.markdown('**Detailed under-result protocol block**')
+    for line in universal_protocol_block(calc, value=value, unit=unit, min_ref=min_ref, max_ref=max_ref, protocol=protocol, year=year, **kwargs):
         st.markdown(f'- {line}')
 def pediatric_clinical_interpretation(kind, value, **kwargs):
     if kind=='bmi':
@@ -713,6 +1558,7 @@ else:
                 score=(1 if rr>=22 else 0)+(1 if sbp<=100 else 0)+(1 if gcs<15 else 0)
                 source_badges(indian='Emergency protocol support', global_src='qSOFA', method='Risk cue')
                 st.metric('qSOFA', score)
+                render_universal_protocol('qsofa', value=score, unit='score', min_ref='0', max_ref='3', protocol='Sepsis screening support', year='Clinical standard')
                 safety_note(qsofa_interpret(score),'note')
                 for step in PATHWAYS['Sepsis quick pathway']: st.markdown(f"- {step}")
                 safety_note('qSOFA is not a sepsis diagnosis and should not delay escalation in a clinically unstable patient.','warn')
