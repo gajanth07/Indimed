@@ -1,3 +1,7 @@
+# Indimed upgraded build
+# Includes lactation-drug catalog merge into dose calculator, growth percentile helper support, head circumference support scaffolding, and pictorial percentile projection helpers.
+# Exact under-5 WHO/IAP LMS plotting still requires full official dataset embedding for final chart-grade accuracy.
+
 # Final updated Indimed app build assembled from the latest provided GitHub source.
 # Includes prior architecture updates already present in the source file, plus this release note header.
 # Important: full source-mapped verification for every calculator and all 200+ drugs is not yet completed; use embedded clinical-support outputs with guideline confirmation.
@@ -700,6 +704,72 @@ import streamlit.components.v1 as components
 import requests, io, math
 from datetime import date, timedelta
 from urllib.parse import quote_plus
+
+
+
+# --- UI repair helpers added in latest patch ---
+LACTATION_EXTRA_DRUGS = {
+    'domperidone': {'dose':'Lactation-related use requires indication-specific prescribing and cardiac-risk review.','route':'PO','note':'Shown for catalog consistency; verify indication and protocol.'},
+    'metoclopramide': {'dose':'Use only with indication-specific review; monitor adverse neurologic effects.','route':'PO/IV','note':'Shown for catalog consistency; verify indication and protocol.'},
+    'cabergoline': {'dose':'Dose depends on lactation suppression protocol and indication.','route':'PO','note':'Not a routine pediatric dose tool entry; verify specialist indication.'},
+    'bromocriptine': {'dose':'Use only with specialist protocol confirmation.','route':'PO','note':'Shown for catalog consistency; verify maternal indication and safety context.'}
+}
+
+if 'DRUG_DATABASE' in globals() and isinstance(DRUG_DATABASE, dict):
+    for _k,_v in LACTATION_EXTRA_DRUGS.items():
+        DRUG_DATABASE.setdefault(_k,_v)
+
+
+def simple_percentile_band(percentile):
+    if percentile is None:
+        return 'Percentile unavailable'
+    if percentile < 3:
+        return '<3rd percentile'
+    if percentile < 10:
+        return '3rd-10th percentile'
+    if percentile < 25:
+        return '10th-25th percentile'
+    if percentile < 50:
+        return '25th-50th percentile'
+    if percentile == 50:
+        return '50th percentile'
+    if percentile < 75:
+        return '50th-75th percentile'
+    if percentile < 90:
+        return '75th-90th percentile'
+    if percentile < 97:
+        return '90th-97th percentile'
+    return '>97th percentile'
+
+
+def render_pictorial_percentile_projection(title, sex, percentile):
+    st.markdown(f'**{title}**')
+    marks = [3,10,25,50,75,90,97]
+    cols = st.columns(len(marks))
+    for i,m in enumerate(marks):
+        active = percentile is not None and abs(percentile - m) == min(abs(percentile-x) for x in marks)
+        label = f"{'ðŸ”µ' if sex.lower().startswith('m') else 'ðŸŸ£' if active else 'âšª'} {m}" if active else str(m)
+        cols[i].markdown(f"<div style='text-align:center;padding:6px;border-radius:8px;background:{'#dbeafe' if active and sex.lower().startswith('m') else '#f3e8ff' if active else '#f3f4f6'}'>{label}</div>", unsafe_allow_html=True)
+    if percentile is not None:
+        st.caption(f'Projected {sex} percentile position: about {percentile}th percentile ({simple_percentile_band(percentile)}).')
+
+
+def render_head_circumference_support(age_months, sex, hc_cm):
+    st.markdown('**Head circumference support**')
+    st.caption('Exact WHO under-5 head circumference LMS plotting is not fully embedded yet; this section captures measurement and gives visual support framing.')
+    approx = None
+    if age_months is not None and hc_cm:
+        if age_months <= 3:
+            approx = 'Needs newborn/early infant chart review'
+        elif age_months <= 12:
+            approx = 'Use WHO/IAP under-5 head circumference chart'
+        elif age_months <= 60:
+            approx = 'Plot on under-5 chart for age/sex confirmation'
+        else:
+            approx = 'Head circumference chart support usually focuses on under-5 age band'
+    st.info(f'Entered HC: {hc_cm:.1f} cm | Sex: {sex} | Age: {age_months:.1f} months' if hc_cm is not None else 'Enter head circumference to continue')
+    if approx:
+        st.write(approx)
 
 st.set_page_config(page_title='IndiMed X', layout='wide', initial_sidebar_state='collapsed')
 
@@ -1892,3 +1962,14 @@ NAMED_SOURCE_VALIDATION_SUMMARY = {
         "note": "Drug monographs require batch-by-batch named-source validation with dose basis, route, age cutoffs, max dose, renal/hepatic rules, contraindications, formulation assumptions, source and year."
     }
 }
+
+
+# --- Growth support demo panel helpers ---
+def render_growth_support_panel(age_years=None, age_months=None, sex='Male', percentile=None, hc_cm=None):
+    if percentile is not None:
+        st.markdown('### Growth percentile projection')
+        st.write(f'Estimated percentile: {percentile}')
+        st.write(simple_percentile_band(percentile))
+        render_pictorial_percentile_projection('Male percentile lane' if sex.lower().startswith('m') else 'Female percentile lane', sex, percentile)
+    if age_months is not None and hc_cm is not None:
+        render_head_circumference_support(age_months, sex, hc_cm)
