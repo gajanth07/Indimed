@@ -171,6 +171,7 @@ def neonatal_jaundice_pathway(age_hours, bilirubin, preterm=False, risk=False):
         return 'High-risk pathway', prompt
     return level, prompt
 
+@st.cache_data(show_spinner=False)
 def scenario_checklist(role):
     scenarios={
         'resident':['Can I reach emergency tools in 1 tap?','Are dose outputs readable under stress?','Is the next action obvious?'],
@@ -222,6 +223,63 @@ def glucose_infusion_advice(gir):
         return 'High GIR', 'Higher glucose delivery; review indication, glucose values, and fluid balance.'
     return 'Very high GIR', 'Markedly high glucose delivery; recheck calculations and assess for hyperglycemia risk.'
 
+
+
+@st.cache_data(show_spinner=False)
+def indian_support_bundle(topic, **kwargs):
+    if topic=='dehydration':
+        severity=kwargs.get('severity','No dehydration')
+        if severity=='Severe dehydration':
+            return {
+                'probable_causes':['Acute gastroenteritis with major fluid loss','Sepsis with poor perfusion','Profound vomiting or diarrhea','Adrenal/metabolic cause if atypical history'],
+                'suggested_diagnosis':['Severe dehydration / possible shock','Need urgent reassessment for sepsis, electrolyte disorder, or hypoglycemia'],
+                'management':['Urgent perfusion assessment','Use ORS/NG/IV strategy as clinically appropriate and per local protocol','Check glucose and electrolytes where available','Escalate if weak pulses, altered sensorium, anuria, or repeated emesis'],
+                'alternatives':['If malnutrition or cardiac disease suspected, standard fluid assumptions may not apply']
+            }
+        if severity=='Some dehydration':
+            return {
+                'probable_causes':['Gastroenteritis with moderate fluid deficit','Fever with poor intake','Vomiting predominant illness'],
+                'suggested_diagnosis':['Some dehydration without overt shock'],
+                'management':['ORS is usually preferred if child can drink','Track ongoing stool and vomit losses','Reassess hydration after rehydration window'],
+                'alternatives':['Consider sepsis, diabetic ketoacidosis, or surgical abdomen if symptoms do not fit simple diarrhea']
+            }
+    if topic=='anemia':
+        return {
+            'probable_causes':['Iron deficiency anemia','Thalassemia trait if microcytosis disproportionate','Chronic inflammation or blood loss'],
+            'suggested_diagnosis':['Microcytic anemia pattern requiring CBC, ferritin or iron profile context, and dietary history'],
+            'management':['Review diet, pallor severity, hemodynamic stability, and reticulocyte context','Use IAP/India anemia guidance for supplementation and workup'],
+            'alternatives':['Lead exposure, hemolysis, or mixed deficiency if pattern is atypical']
+        }
+    if topic=='neonatal_sepsis':
+        return {
+            'probable_causes':['Early-onset neonatal sepsis','Late-onset sepsis','Pneumonia, meningitis, or line-related infection depending on context'],
+            'suggested_diagnosis':['At-risk or probable neonatal sepsis based on symptoms and maternal or perinatal risk factors'],
+            'management':['Admit/observe according to severity and unit policy','Obtain cultures before antibiotics when feasible','Start empiric antibiotics per local/NICU policy if probability high','Support temperature, glucose, perfusion, and feeding'],
+            'alternatives':['Transient tachypnea, hypoglycemia, intracranial pathology, metabolic disease, or congenital heart disease can mimic sepsis']
+        }
+    if topic=='jaundice':
+        return {
+            'probable_causes':['Physiologic jaundice','Breastfeeding failure jaundice','Hemolysis or blood group incompatibility','Sepsis or prematurity-related vulnerability'],
+            'suggested_diagnosis':['Neonatal jaundice requiring age-in-hours and risk-factor stratification'],
+            'management':['Plot bilirubin on hour-specific nomogram','Assess feeding, weight loss, urine/stool transition, and hemolysis risk','Escalate sooner in preterm or sick infants'],
+            'alternatives':['Conjugated jaundice, G6PD deficiency, cephalohematoma, hypothyroidism, or infection if course is atypical']
+        }
+    return {
+        'probable_causes':['Use history, exam, and local epidemiology to build the differential'],
+        'suggested_diagnosis':['Calculator output supports but does not replace diagnosis'],
+        'management':['Follow local protocol and reassess if bedside findings conflict'],
+        'alternatives':['Consider measurement error, mixed pathology, or nonstandard presentation']
+    }
+
+def render_bundle(bundle):
+    st.markdown('**Probable causes**')
+    for x in bundle['probable_causes']: st.markdown(f'- {x}')
+    st.markdown('**Suggested diagnosis / frame**')
+    for x in bundle['suggested_diagnosis']: st.markdown(f'- {x}')
+    st.markdown('**Management suggestions**')
+    for x in bundle['management']: st.markdown(f'- {x}')
+    st.markdown('**Alternatives / cautions**')
+    for x in bundle['alternatives']: st.markdown(f'- {x}')
 def pediatric_clinical_interpretation(kind, value, **kwargs):
     if kind=='bmi':
         age=kwargs.get('age')
@@ -238,6 +296,7 @@ def pediatric_clinical_interpretation(kind, value, **kwargs):
     return 'Interpret the result within the full clinical picture, repeating assessment if the child is unstable or the number conflicts with bedside findings.'
 
 
+@st.cache_data(show_spinner=False)
 def dept_link_card(name, info):
     slug = quote_plus(name)
     tags = ''.join([f"<span class='tag'>{t}</span>" for t in info['tags']])
