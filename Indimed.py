@@ -168,14 +168,11 @@ if st.session_state.page=='home':
     st.caption('Search is instant across department names and descriptions.')
     st.markdown("<div class='title'>Departments</div>", unsafe_allow_html=True)
     ordered=[x for x in ['Pediatrics and Growth','Neonatology','AI Clinical Search','Medication Safety and Dose','Emergency Medicine','Metabolic and General Medicine','Hematology','HIV and ART Follow-up'] if x in search_modules(st.session_state.query)]
-    for i in range(0,len(ordered),1):
-        cols=st.columns(1)
-        for j,name in enumerate(ordered[i:i+2]):
-            with cols[j]:
-                info=MODULES[name]
-                tags=''.join([f"<span class='tag'>{t}</span>" for t in info['tags']])
-                st.markdown(f"<div class='card {info['cls']}'><div class='title'>{name}</div><div class='desc'>{info['desc']}</div><div style='margin-top:.38rem'>{tags}</div></div>", unsafe_allow_html=True)
-                st.button(name, key='open_'+name, on_click=open_dept, args=(name,))
+    for name in ordered:
+        info=MODULES[name]
+        tags=''.join([f"<span class='tag'>{t}</span>" for t in info['tags']])
+        st.markdown(f"<div class='card {info['cls']}'><div class='title'>{name}</div><div class='desc'>{info['desc']}</div><div style='margin-top:.38rem'>{tags}</div></div>", unsafe_allow_html=True)
+        st.button(name, key='open_'+name, on_click=open_dept, args=(name,))
 else:
     dept=st.session_state.dept
     st.button('Back to Home', on_click=go_home)
