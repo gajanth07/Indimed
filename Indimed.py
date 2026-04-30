@@ -280,6 +280,81 @@ def render_bundle(bundle):
     for x in bundle['management']: st.markdown(f'- {x}')
     st.markdown('**Alternatives / cautions**')
     for x in bundle['alternatives']: st.markdown(f'- {x}')
+
+
+def c_to_f(c):
+    return round((c*9/5)+32,1)
+
+@st.cache_data(show_spinner=False)
+def protocol_detail_lines(topic):
+    if topic=='pediatric_anemia':
+        return [
+            'Likely diagnostic frame: microcytic or nutritional anemia if history and hemogram fit.',
+            'Probable causes include iron deficiency, dietary insufficiency, chronic blood loss, or thalassemia trait.',
+            'Alternative diagnoses include mixed deficiency, chronic inflammation, hemolysis, or lead exposure.',
+            'Check severity, hemodynamic stability, diet, pica, worm burden, blood loss history, and growth pattern.',
+            'Mentzer index can support pattern recognition but does not diagnose iron deficiency by itself.',
+            'IAP Standard Treatment Guideline 2022 on Iron Deficiency Anemia supports treatment based on compatible clinical and hemogram findings with targeted confirmation where needed.',
+            'Indian pediatric anemia guidance also emphasizes prevention and iron-folic supplementation programs where relevant.',
+            'Treatment direction commonly includes oral iron in stable likely IDA with counseling on adherence and diet.',
+            'Alternative treatment path is further workup first when the pattern is atypical, severe, refractory, or associated with hemolysis or systemic disease.',
+            'Reassess response, reticulocyte trend, hemoglobin rise, tolerance, and adherence rather than relying on one reading alone.'
+        ]
+    if topic=='neonatal_sepsis':
+        return [
+            'Likely diagnostic frame: at-risk, suspect, or high-probability neonatal sepsis depending on signs and maternal risk factors.',
+            'Probable causes include early-onset bacterial sepsis, late-onset nosocomial infection, pneumonia, meningitis, or line-related infection.',
+            'Alternative diagnoses include hypoglycemia, TTN, congenital heart disease, intracranial pathology, or metabolic illness.',
+            'ICMR Standard Treatment Workflow for Sepsis in Neonates references observation for selected at-risk infants and escalation for worsening signs.',
+            'The ICMR workflow available in 2024 states blood culture should be obtained before antibiotics when feasible and baby is being evaluated for sepsis.',
+            'It also recommends empiric antibiotics as per local or unit policy rather than one universal regimen.',
+            'Supportive care should include temperature stability, glucose support, perfusion review, respiratory support, and feeding decisions based on stability.',
+            'Alternative management path is close observation without immediate prolonged antibiotics in lower-probability cases per workflow and response data.',
+            'Lumbar puncture and broader investigations depend on hemodynamic stability and suspicion level.',
+            'Definitive treatment must follow NICU/SNCU protocol, culture results, CRP trend, and the infant clinical course.'
+        ]
+    if topic=='pediatric_sepsis':
+        return [
+            'Likely diagnostic frame: sepsis or septic shock in a child with suspected infection and perfusion abnormality.',
+            'Probable causes include bacterial sepsis, dengue with shock physiology, severe pneumonia, meningococcemia, or abdominal sepsis.',
+            'Alternative diagnoses include dehydration, anaphylaxis, cardiogenic shock, toxic ingestion, or severe asthma with fatigue.',
+            'ICMR pediatric workflow compendium includes sepsis and septic shock pathways for children.',
+            'These workflows emphasize early recognition, rapid reassessment, hemodynamic support, antimicrobial timing, and source-focused evaluation.',
+            'MAP and bedside perfusion markers should be interpreted together because a normal number does not exclude shock.',
+            'Treatment direction usually includes airway and breathing review, vascular access, glucose check, fluid strategy, and early escalation.',
+            'Alternative treatment path depends on shock phenotype, malnutrition, heart disease, or renal limitation where generic fluid assumptions may not hold.',
+            'Use unit-specific antimicrobial and vasoactive protocols rather than calculator-only logic.',
+            'Repeat clinical examination remains essential because pediatric shock can evolve rapidly despite an initially acceptable blood pressure.'
+        ]
+    if topic=='jaundice':
+        return [
+            'Likely diagnostic frame: neonatal unconjugated jaundice requiring hour-specific risk stratification.',
+            'Probable causes include physiologic jaundice, breastfeeding failure jaundice, hemolysis, prematurity, bruising, or infection.',
+            'Alternative diagnoses include conjugated jaundice, hypothyroidism, G6PD deficiency, biliary pathology, or metabolic disease.',
+            'NICE neonatal jaundice guidance and Indian neonatal practice both depend on age in hours rather than day-of-life alone.',
+            'IAP neonatal standards include jaundice-related topics within broader neonatal guidance resources and emphasize structured evaluation.',
+            'Treatment direction includes plotting bilirubin on an accepted nomogram, checking gestation and neurotoxicity risk, and assessing feeding adequacy and weight loss.',
+            'Alternative pathway is urgent evaluation when jaundice appears in the first 24 hours or the baby is preterm or clinically unwell.',
+            'Phototherapy and exchange thresholds are not interchangeable across gestational ages and risk groups.',
+            'Always review stool and urine transition, maternal blood group history, bruising, hemolysis clues, and sepsis red flags.',
+            'Definitive treatment must follow local neonatal protocol and current hour-specific threshold charts.'
+        ]
+    return [
+        'This output is a decision-support result, not a stand-alone diagnosis.',
+        'Interpret the number together with history, examination, trend, and local epidemiology.',
+        'Probable causes depend on the syndrome pattern and severity.',
+        'Alternative diagnoses should be reviewed when the clinical picture is atypical.',
+        'Indian standards generally support protocol-based, context-sensitive care rather than single-number decisions.',
+        'Check for red flags, severity markers, and unstable physiology first.',
+        'Review whether confirmatory laboratory or imaging data are required.',
+        'Use local formulary and unit pathway for medication and escalation details.',
+        'Reassess after the first intervention because pediatric and neonatal physiology changes quickly.',
+        'Escalate when bedside findings and calculator output do not match.'
+    ]
+
+def render_protocol_lines(topic):
+    for line in protocol_detail_lines(topic):
+        st.markdown(f'- {line}')
 def pediatric_clinical_interpretation(kind, value, **kwargs):
     if kind=='bmi':
         age=kwargs.get('age')
